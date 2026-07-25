@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# Local editor/tooling config
+.claude/
+
+# Generated build artifacts from scripts/fetch-events.mjs
+# (data/events.js is the real, committed dataset -- these are intermediates)
+data/.cache/
+data/events.generated.json
+data/years-breakdown.csv
