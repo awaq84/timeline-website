@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Historical Atlas — Interactive Timeline Map</title>
+<link rel="stylesheet" href="style.css?v=9">
+</head>
+<body>
+
+<header class="app-header">
+  <p class="kicker">Interactive Atlas</p>
+  <h1>Historical Atlas</h1>
+  <p class="tagline">Slide through time. Explore the world.</p>
+</header>
+
+<main>
+  <section class="discovery-section">
+    <p class="eyebrow">Discover</p>
+    <div class="discovery-row">
+      <p class="discovery-prompt" id="discoveryPrompt">Discover what else was going on in the world when&hellip;</p>
+      <div class="discovery-controls">
+        <button id="discoveryRefreshBtn" class="icon-btn" title="Show another moment" aria-label="Show another moment">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="discoverGoBtn" class="icon-btn-accent discovery-go">
+          Take me there
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="map-section">
+    <div class="year-badge" id="yearBadge">1969</div>
+    <div id="map"></div>
+    <div class="map-tooltip" id="mapTooltip"></div>
+    <div class="map-zoom-controls">
+      <button id="zoomInBtn" class="icon-btn" title="Zoom in" aria-label="Zoom in">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button id="zoomOutBtn" class="icon-btn" title="Zoom out" aria-label="Zoom out">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button id="zoomResetBtn" class="icon-btn" title="Reset zoom" aria-label="Reset zoom">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <p class="map-zoom-hint" id="mapZoomHint">Scroll, pinch, or use the controls to zoom into crowded areas</p>
+  </section>
+
+  <section class="timeline-section">
+    <div class="timeline-controls">
+      <button id="stepBack" class="icon-btn" title="Previous event" aria-label="Previous event">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <input type="range" id="yearSlider" value="1969" step="1">
+      <button id="stepForward" class="icon-btn" title="Next event" aria-label="Next event">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="playBtn" class="icon-btn icon-btn-accent" title="Auto-play" aria-label="Auto-play">
+        <svg viewBox="0 0 24 24" fill="none" class="icon-play"><path d="M8 5l12 7-12 7V5z" fill="currentColor"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" class="icon-pause" hidden><path d="M7 5h4v14H7V5zm6 0h4v14h-4V5z" fill="currentColor"/></svg>
+      </button>
+    </div>
+    <div class="timeline-labels"></div>
+  </section>
+
+  <section class="content-section">
+    <aside class="filters-panel">
+      <p class="eyebrow">Filters</p>
+      <h2>Focus Areas</h2>
+      <p class="hint">Choose categories to highlight on the map.</p>
+      <div id="categoryFilters" class="category-list"></div>
+      <div class="filter-actions">
+        <button id="selectAll" class="ghost-btn">Select all</button>
+        <button id="clearAll" class="ghost-btn">Clear all</button>
+      </div>
+      <p class="dataset-stat" id="datasetStat"></p>
+    </aside>
+
+    <div class="events-panel">
+      <p class="eyebrow">Timeline</p>
+      <h2 id="eventsHeading">Events in <span id="eventsYear">1969</span></h2>
+      <div id="eventsList" class="events-list"></div>
+    </div>
+  </section>
+</main>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+<script src="data/events.js?v=9"></script>
+<script src="app.js?v=10"></script>
+</body>
+</html>
