@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page not found — Timeline History</title>
+<!-- A 404 must never be indexed. GitHub Pages serves this file with a real 404
+     status for any unmatched path, but the noindex is belt and braces: without
+     it a soft-404 crawled through a stale link can end up in the index. -->
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#000000">
+<link rel="stylesheet" href="/page.css?v=1">
+</head>
+<body>
+
+<header class="page-header">
+  <a class="brand" href="/">Timeline History</a>
+  <nav class="brand-nav"><a href="/">Interactive map</a></nav>
+</header>
+
+<main>
+  <h1 id="nfTitle">Page not found</h1>
+  <p class="lead" id="nfLead">That URL doesn&rsquo;t match anything on this site.</p>
+
+  <p class="cta"><a class="cta-btn" href="/">Open the interactive map &rarr;</a></p>
+
+  <nav class="nearby" id="nfSuggest" hidden>
+    <h2>Try these instead</h2>
+    <ul id="nfLinks"></ul>
+  </nav>
+</main>
+
+<footer class="page-footer">
+  <p>Event data from <a href="https://www.wikidata.org/" rel="noopener">Wikidata</a> and <a href="https://en.wikipedia.org/" rel="noopener">Wikipedia</a>, available under <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a>.</p>
+  <p><a href="/">Timeline History</a> &middot; an interactive world history map of 111,389 events from 3001 BC to 2026.</p>
+</footer>
+
+<script>
+// Only 2,451 of the 5,027 years between 3001 BC and 2026 have any recorded
+// events, so /year/1500-bc/ and about 2,500 other plausible-looking URLs land
+// here. Rather than a dead end, work out which year the visitor was after and
+// point them at the nearest one that actually exists.
+(function () {
+  var m = /^\/year\/(\d+)(-bc)?\/?$/.exec(location.pathname);
+  if (!m) return;
+
+  var wanted = parseInt(m[1], 10) * (m[2] ? -1 : 1);
+  var label = wanted < 0 ? Math.abs(wanted) + " BC" : String(wanted);
+  var slug = function (y) { return y < 0 ? Math.abs(y) + "-bc" : String(y); };
+
+  document.getElementById("nfTitle").textContent = "Nothing recorded in " + label;
+  document.getElementById("nfLead").textContent =
+    "The dataset has no events for " + label + ". Most years before about AD 1000 are blank — the record thins out fast the further back you go.";
+
+  // There is no year zero, so 1 BC is followed straight by AD 1.
+  function centuryOf(y) { return y > 0 ? Math.ceil(y / 100) : -Math.ceil(Math.abs(y) / 100); }
+  function ordinal(n) {
+    var r = n % 100;
+    if (r >= 11 && r <= 13) return n + "th";
+    return n + ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th");
+  }
+  function centuryLabel(c) { return c > 0 ? ordinal(c) + " century" : ordinal(-c) + " century BC"; }
+  function centurySlug(c) { return c > 0 ? ordinal(c) + "-century" : ordinal(-c) + "-century-bc"; }
+
+  // index.json is already fetched by the map on every visit and is 27KB, so
+  // it's usually warm in cache by the time anyone reaches a 404.
+  fetch("/data/index.json")
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error(r.status)); })
+    .then(function (index) {
+      var years = index.years.map(function (row) { return row[0]; });
+      if (!years.length) return;
+
+      var nearest = years[0];
+      for (var i = 1; i < years.length; i++) {
+        if (Math.abs(years[i] - wanted) < Math.abs(nearest - wanted)) nearest = years[i];
+      }
+      var c = centuryOf(nearest);
+
+      var links = [
+        { href: "/year/" + slug(nearest) + "/", text: (nearest < 0 ? Math.abs(nearest) + " BC" : nearest) + " (nearest year with events)" },
+        { href: "/century/" + centurySlug(c) + "/", text: "The " + centuryLabel(c) },
+        { href: "/?year=" + nearest, text: "That year on the map" },
+      ];
+
+      var ul = document.getElementById("nfLinks");
+      links.forEach(function (l) {
+        var li = document.createElement("li");
+        var a = document.createElement("a");
+        a.href = l.href;
+        a.textContent = l.text;
+        li.appendChild(a);
+        ul.appendChild(li);
+      });
+      document.getElementById("nfSuggest").hidden = false;
+    })
+    .catch(function () {
+      /* The generic message and the link home are already on the page. */
+    });
+})();
+</script>
+
+</body>
+</html>
