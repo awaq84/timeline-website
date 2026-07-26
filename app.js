@@ -107,6 +107,37 @@ function formatYear(y) {
   return y < 0 ? `${Math.abs(y)} BC` : `${y}`;
 }
 
+// An event carries `prec` only when Wikidata's own date is vaguer than a year:
+// 6 millennium, 7 century, 8 decade. Wikidata renders such a date as a concrete
+// January 1st, so "12th century" reaches us as 1101 or 1150 depending on the
+// item, and thousands of events piled onto those anchor years looking exact.
+//
+// They still sit at the anchor year on the timeline -- it's the only position we
+// have, and it's right to within a century -- but the event list says what the
+// source actually claims rather than parroting the anchor. Kept in step with
+// precisionLabel() in scripts/build-year-pages.mjs.
+const ordinalSuffix = (n) => {
+  const r = n % 100;
+  if (r >= 11 && r <= 13) return `${n}th`;
+  return `${n}${{ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th"}`;
+};
+
+// Wikibase derives the ordinal from the astronomical year (the one where 0 exists
+// and means 1 BC), so -0400 at century precision is "4th century BC" in Wikidata's
+// own renderer. We store display years, so convert back before the arithmetic or
+// every BC label lands one century out. Kept in step with precisionLabel() in
+// scripts/build-year-pages.mjs.
+function precisionLabel(e) {
+  if (!e.prec) return null;
+  const a = e.year < 0 ? e.year + 1 : e.year;
+  const bc = a <= 0;
+  const mag = Math.abs(a);
+  if (e.prec === 8) return `${Math.floor(mag / 10) * 10}s${bc ? " BC" : ""}`;
+  const size = e.prec === 7 ? 100 : 1000;
+  const word = e.prec === 7 ? "century" : "millennium";
+  return `${ordinalSuffix(Math.max(1, Math.ceil(mag / size)))} ${word}${bc ? " BC" : ""}`;
+}
+
 // ---- Data access ----
 //
 // The dataset is 111,389 events / 28MB. Shipping all of it before the first
@@ -308,15 +339,24 @@ function renderEventsList(currentEvents) {
     return;
   }
 
-  currentEvents.forEach((e) => {
+  // Events actually dated to this year first. The rest are only dated to a
+  // century or decade and merely anchor here, so they shouldn't outrank the
+  // year's real content -- on 1101 they outnumber it roughly 75 to 1.
+  const ordered = [...currentEvents].sort((a, b) => (a.prec ? 1 : 0) - (b.prec ? 1 : 0));
+
+  ordered.forEach((e) => {
     const card = document.createElement("div");
     card.className = "event-card";
     card.style.borderLeftColor = CATEGORY_COLORS[e.category] || "#888";
 
     const isWikidata = e.source === "wikidata";
+    const approx = precisionLabel(e);
+    const approxTag = approx
+      ? `<span class="event-approx" title="Dated only to the ${approx} in the source data, not to ${formatYear(e.year)}">${approx}</span>`
+      : "";
     card.innerHTML = `
       <h3>${e.title}</h3>
-      <div class="event-meta"><span class="event-meta-swatch"></span>${e.category}${e.location ? ` &middot; ${e.location}` : ""}</div>
+      <div class="event-meta"><span class="event-meta-swatch"></span>${e.category}${e.location ? ` &middot; ${e.location}` : ""}${approxTag}</div>
       <p class="event-summary">${e.summary}</p>
       <a href="${e.wiki}" target="_blank" rel="noopener noreferrer">${isWikidata ? "View source on Wikidata" : "Read more on Wikipedia"} &rarr;</a>
     `;
@@ -693,7 +733,7 @@ function tooltipMarkup(d, pinned) {
     <h4>${d.title}</h4>
     <div class="tooltip-meta">
       <span class="tooltip-swatch" id="tooltipSwatch"></span>
-      <span>${formatYear(d.year)} &middot; ${d.category}${d.location ? ` &middot; ${d.location}` : ""}</span>
+      <span>${precisionLabel(d) || formatYear(d.year)} &middot; ${d.category}${d.location ? ` &middot; ${d.location}` : ""}</span>
     </div>
     <p class="tooltip-summary">${d.summary}</p>
     ${

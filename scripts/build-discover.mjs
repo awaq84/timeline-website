@@ -253,9 +253,18 @@ async function main() {
   // --- Generated candidates.
   const candidates = [];
   let phrasable = 0;
+  let vague = 0;
   for (const e of events) {
     const key = `${e.year}|${e.title}`;
     if (takenKeys.has(key)) continue;
+    // A prompt reads "...when X (1150)?" and jumps the slider to that year, so an
+    // event whose date is only good to the century would state a year the source
+    // never claimed and land the reader somewhere arbitrary. There are 104k
+    // year-precise events to draw 200 prompts from, so dropping these is free.
+    if (e.prec) {
+      vague++;
+      continue;
+    }
     const question = questionFor(e.title, e.category);
     if (!question) continue;
     phrasable++;
@@ -263,7 +272,7 @@ async function main() {
     if (fame < MIN_SITELINKS) continue;
     candidates.push({ event: e, question, category: e.category, year: e.year, fame });
   }
-  console.log(`${phrasable} phrasable titles -> ${candidates.length} above ${MIN_SITELINKS} sitelinks`);
+  console.log(`${phrasable} phrasable titles -> ${candidates.length} above ${MIN_SITELINKS} sitelinks (${vague} skipped for an imprecise date)`);
 
   // Most famous first, then thinned by category and century so the pool stays
   // varied rather than 200 modern celebrities.

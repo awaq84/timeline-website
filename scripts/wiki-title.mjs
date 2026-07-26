@@ -19,3 +19,14 @@ export function articleTitleFromWiki(wiki) {
     return null;
   }
 }
+
+// The other half of the join. Events with no English Wikipedia article link to
+// their Wikidata item instead (https://www.wikidata.org/wiki/Q42), and there are
+// 5,341 of them -- disproportionately the obscure ones, which are also the ones
+// most likely to carry a vague date. Keying those on the QID rather than skipping
+// them is what stops /year/1000/ and /year/1500/ keeping most of their inflation.
+export function qidFromWiki(wiki) {
+  if (!wiki || !wiki.includes("wikidata.org/wiki/")) return null;
+  const m = /\/wiki\/(Q\d+)/.exec(wiki);
+  return m ? m[1] : null;
+}

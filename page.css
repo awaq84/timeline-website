@@ -171,6 +171,43 @@ h3 {
   color: var(--text);
 }
 
+/* The period an approximate event is really dated to, shown where the year would
+   otherwise go. Muted and un-bolded so it doesn't compete with the exact dates in
+   the "Around this time" list, which sit in the same slot. */
+.event-year-approx {
+  font-weight: 500;
+  color: var(--muted);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+/* ---- Approximate-date section on a year page ---- */
+
+/* Set apart from the year's real events above it: these only anchor to this year,
+   they didn't happen in it. The rule and the inset say "different kind of thing"
+   without needing another heading level to explain it. */
+.approx-block {
+  margin-top: 36px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.approx-block > .section-note {
+  max-width: 62ch;
+  margin-bottom: 22px;
+}
+
+.approx-period {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 26px 0 12px;
+}
+
 .cat-dot {
   width: 9px;
   height: 9px;

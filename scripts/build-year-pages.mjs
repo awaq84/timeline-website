@@ -31,7 +31,7 @@ const CENTURY_DIR = path.join(ROOT, "century");
 const SITEMAP_PATH = path.join(ROOT, "sitemap.xml");
 
 const SITE = "https://timelinehistory.net";
-const CSS_VERSION = 1;
+const CSS_VERSION = 2;
 
 // Mirrors CATEGORY_COLORS / CATEGORY_ORDER in app.js. Duplicated rather than
 // imported because app.js is a browser script with no exports, and turning it
@@ -100,6 +100,41 @@ const centuryRange = (c) =>
     ? [(c - 1) * 100 + 1, c * 100]
     : [-(Math.abs(c) * 100), -((Math.abs(c) - 1) * 100 + 1)];
 
+// An event carries `prec` only when Wikidata's date is vaguer than a year:
+// 6 millennium, 7 century, 8 decade. See migrate-date-precision.mjs.
+//
+// These events still have an anchor year, because Wikidata renders an imprecise
+// date as a concrete January 1st -- "12th century" arrives as either 1101 or 1150
+// depending on the item. That anchor is fine for placing a marker on a timeline
+// and useless as a factual claim, which is the whole problem this guards against:
+// /year/1150/ was asserting 490 events happened in 1150 when 470 of them are only
+// known to the century.
+//
+// The label has to reproduce what a Wikidata editor saw when they chose the date,
+// and Wikibase derives the ordinal from the *astronomical* year -- the one where
+// 0 exists and stands for 1 BC. Verified against Wikibase's own wbformatvalue
+// renderer: -0400 at century precision displays as "4. century BCE", not 5th,
+// even though the year -0400 is 401 BC and 401 BC sits in the 5th century BC.
+//
+// Our events store display years (401 BC as -401), so the astronomical year has
+// to be recovered before the arithmetic. Doing this on the display year instead
+// puts every BC century and millennium label off by one.
+const astronomicalYear = (y) => (y < 0 ? y + 1 : y);
+
+function precisionLabel(e) {
+  if (!e.prec) return null;
+  const a = astronomicalYear(e.year);
+  const bc = a <= 0;
+  const mag = Math.abs(a);
+  // Wikibase truncates for decades ("410s BCE") and rounds up for the ordinal
+  // buckets ("4. century BCE"), so these two can't share a formula.
+  if (e.prec === 8) return `${Math.floor(mag / 10) * 10}s${bc ? " BC" : ""}`;
+  const size = e.prec === 7 ? 100 : 1000;
+  const word = e.prec === 7 ? "century" : "millennium";
+  // max(1) guards astronomical year 0, which has no meaningful ordinal.
+  return `${ordinal(Math.max(1, Math.ceil(mag / size)))} ${word}${bc ? " BC" : ""}`;
+}
+
 const listPhrase = (items) =>
   items.length <= 1
     ? items.join("")
@@ -166,7 +201,14 @@ function breadcrumb(items) {
 function eventCard(e, { showYear = false } = {}) {
   const colour = CATEGORY_COLORS[e.category] || "#888";
   const place = e.location ? ` &middot; ${esc(e.location)}` : "";
-  const when = showYear
+  const approx = precisionLabel(e);
+  // An approximate event shows its real precision ("12th century") instead of an
+  // anchor year it can't support, and the label is plain text rather than a link
+  // to /year/1101/ -- linking there would re-assert the exact date this is
+  // correcting. Exact events keep the year link.
+  const when = approx
+    ? `<span class="event-year event-year-approx" title="Dated only to the ${esc(approx)} in the source data">${esc(approx)}</span>`
+    : showYear
     ? `<a class="event-year" href="/year/${yearSlug(e.year)}/">${esc(yearLabel(e.year))}</a>`
     : "";
   const linkText =
@@ -184,10 +226,18 @@ function yearPage(year, events, ctx) {
   const label = yearLabel(year);
   const century = centuryOf(year);
 
+  // The page's own claim -- title, lead, count, description, JSON-LD -- is made
+  // only about events genuinely dated to this year. Everything vaguer is real
+  // history and stays on the page, but below, under a heading that says what it
+  // actually is. Before this split, /year/1150/ opened with "490 recorded events
+  // in 1150" when 470 of those are only known to the 12th century.
+  const exact = events.filter((e) => !e.prec);
+  const approx = events.filter((e) => e.prec);
+
   // Categories in the site's canonical order, not whatever order the events
   // happen to sit in the chunk, so the page reads the same way as the app.
   const byCategory = new Map();
-  for (const e of events) {
+  for (const e of exact) {
     if (!byCategory.has(e.category)) byCategory.set(e.category, []);
     byCategory.get(e.category).push(e);
   }
@@ -198,10 +248,16 @@ function yearPage(year, events, ctx) {
     .slice(0, 3)
     .map(([c, list]) => `${list.length} in ${c.toLowerCase()}`);
 
+  const approxNote = approx.length
+    ? ` A further ${approx.length === 1 ? "event is" : `${approx.length.toLocaleString("en-US")} events are`} dated only to the wider period.`
+    : "";
+
   const lead =
-    events.length === 1
-      ? `One recorded event in ${label}: ${events[0].title}.`
-      : `${events.length} recorded events in ${label}, including ${listPhrase(topCats)}.`;
+    exact.length === 0
+      ? `No event is dated precisely to ${label}, but ${approx.length.toLocaleString("en-US")} ${approx.length === 1 ? "entry is" : "entries are"} recorded in the surrounding period.`
+      : exact.length === 1
+      ? `One recorded event in ${label}: ${exact[0].title}.${approxNote}`
+      : `${exact.length.toLocaleString("en-US")} recorded events in ${label}, including ${listPhrase(topCats)}.${approxNote}`;
 
   const description = `What happened in ${label}? ${lead} Explore them on an interactive world map.`;
 
@@ -223,6 +279,31 @@ ${byCategory.get(c).map((e) => eventCard(e)).join("\n")}
       <ul class="event-list">
 ${around.map((e) => eventCard(e, { showYear: true })).join("\n")}
       </ul>
+    </section>`
+    : "";
+
+  // Grouped by the period they're actually dated to, so a page can hold both
+  // "12th century" and "1150s" entries without implying they're equally precise.
+  // Sorted vaguest-first so the reader meets the broadest claims at the top.
+  const approxGroups = new Map();
+  for (const e of approx) {
+    const k = precisionLabel(e);
+    if (!approxGroups.has(k)) approxGroups.set(k, { prec: e.prec, events: [] });
+    approxGroups.get(k).events.push(e);
+  }
+  const approxBlock = approx.length
+    ? `    <section class="approx-block">
+      <h2>Dated to the wider period</h2>
+      <p class="section-note">Wikidata records ${approx.length === 1 ? "this entry" : `these ${approx.length.toLocaleString("en-US")} entries`} only to a century, decade or millennium rather than to a specific year. ${approx.length === 1 ? "It is" : "They are"} listed here because ${esc(label)} is where that broader date falls, not because ${approx.length === 1 ? "it is" : "they are"} known to have happened in ${esc(label)}.</p>
+${[...approxGroups.entries()]
+  .sort((a, b) => a[1].prec - b[1].prec)
+  .map(
+    ([periodLabel, g]) => `      <h3 class="approx-period">${esc(periodLabel)} <span class="cat-count">${g.events.length.toLocaleString("en-US")}</span></h3>
+      <ul class="event-list">
+${g.events.map((e) => eventCard(e)).join("\n")}
+      </ul>`
+  )
+  .join("\n")}
     </section>`
     : "";
 
@@ -248,6 +329,7 @@ ${around.map((e) => eventCard(e, { showYear: true })).join("\n")}
   <p class="cta"><a class="cta-btn" href="/?year=${year}">See ${esc(label)} on the interactive map &rarr;</a></p>
 
 ${sections}
+${approxBlock}
 ${aroundBlock}
 ${pager}
 ${nearbyBlock}
@@ -284,40 +366,64 @@ ${nearbyBlock}
 function centuryPage(c, years, byYear, prevC, nextC) {
   const label = centuryLabel(c);
   const [from, to] = centuryRange(c);
-  const total = years.reduce((s, y) => s + byYear.get(y).length, 0);
   const span = `${yearLabel(from)} to ${yearLabel(to)}`;
+
+  // A century page can legitimately count a century-precision event: an event
+  // dated "12th century" really does belong on the 12th century page, even though
+  // it can't be pinned to 1101. Millennium-precision entries (prec 6) are the
+  // exception -- landing in this century is an accident of where Wikidata put the
+  // anchor -- so they're excluded from the total rather than silently inflating it.
+  const countable = (y) => byYear.get(y).filter((e) => !e.prec || e.prec >= 7);
+  // What the year pages themselves now headline, so the grid can't contradict
+  // the page it links to.
+  const exactCount = (y) => byYear.get(y).filter((e) => !e.prec).length;
+  const total = years.reduce((s, y) => s + countable(y).length, 0);
 
   // The busiest years act as the page's own content rather than just a list of
   // links -- a naked index of a hundred year numbers is the kind of page that
-  // gets crawled once and never ranked.
+  // gets crawled once and never ranked. Ranked on exact counts so this doesn't
+  // just resurface the century-anchor years (1101, 1150) that started as the bug.
   const busiest = [...years]
-    .sort((a, b) => byYear.get(b).length - byYear.get(a).length)
+    .filter((y) => exactCount(y) > 0)
+    .sort((a, b) => exactCount(b) - exactCount(a))
     .slice(0, 8);
 
   const catCount = new Map();
   for (const y of years) {
-    for (const e of byYear.get(y)) catCount.set(e.category, (catCount.get(e.category) || 0) + 1);
+    for (const e of countable(y)) catCount.set(e.category, (catCount.get(e.category) || 0) + 1);
   }
   const topCats = [...catCount.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([c2, n]) => `${c2.toLowerCase()} (${n.toLocaleString("en-US")})`);
 
-  const lead = `${total.toLocaleString()} recorded events across ${years.length} year${years.length === 1 ? "" : "s"} of the ${label}, ${span}. The largest categories are ${listPhrase(topCats)}.`;
+  // The century total and the year grid deliberately count different things: an
+  // event dated "12th century" belongs on this page but has no year to sit under,
+  // so the total exceeds the grid by however many of those there are. Stating both
+  // numbers here stops the page looking like it contradicts itself to anyone who
+  // adds the grid up.
+  const exactTotal = years.reduce((s, y) => s + exactCount(y), 0);
+  const pinned =
+    exactTotal === total
+      ? ""
+      : ` ${exactTotal.toLocaleString()} of them are dated to a specific year; the rest are recorded only as belonging to the ${label}.`;
+
+  const lead = `${total.toLocaleString()} recorded events across ${years.length} year${years.length === 1 ? "" : "s"} of the ${label}, ${span}.${pinned} The largest categories are ${listPhrase(topCats)}.`;
   const description = `Browse ${total.toLocaleString()} historical events from the ${label} (${span}), year by year, on an interactive world map.`;
 
   const grid = years
     .map(
       (y) =>
-        `      <li><a href="/year/${yearSlug(y)}/"><span class="y">${esc(yearLabel(y))}</span><span class="n">${byYear.get(y).length}</span></a></li>`
+        `      <li><a href="/year/${yearSlug(y)}/"><span class="y">${esc(yearLabel(y))}</span><span class="n">${exactCount(y)}</span></a></li>`
     )
     .join("\n");
 
   const highlights = busiest
-    .map(
-      (y) =>
-        `      <li><a href="/year/${yearSlug(y)}/"><strong>${esc(yearLabel(y))}</strong> &mdash; ${byYear.get(y).length} events<span class="hl-sample">${esc(byYear.get(y)[0].title)}</span></a></li>`
-    )
+    .map((y) => {
+      const n = exactCount(y);
+      const sample = byYear.get(y).find((e) => !e.prec);
+      return `      <li><a href="/year/${yearSlug(y)}/"><strong>${esc(yearLabel(y))}</strong> &mdash; ${n} event${n === 1 ? "" : "s"}<span class="hl-sample">${esc(sample.title)}</span></a></li>`;
+    })
     .join("\n");
 
   const body = `<main class="century-page">
@@ -337,7 +443,7 @@ ${highlights}
 
   <section>
     <h2>Every year in the ${esc(label)}</h2>
-    <p class="section-note">Years with no recorded events are omitted. The number is how many events that year holds.</p>
+    <p class="section-note">Years with no recorded events are omitted. The number is how many events are dated precisely to that year; entries known only to a century or decade are listed on the year page separately.</p>
     <ul class="year-grid">
 ${grid}
     </ul>

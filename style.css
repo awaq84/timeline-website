@@ -860,6 +860,23 @@ main {
   margin-bottom: 10px;
 }
 
+/* Shown instead of the slider's year on events whose source date is only good to
+   a century, decade or millennium. Deliberately quiet -- it's a caveat, not a
+   category -- but outlined so it doesn't read as part of the location text it
+   sits beside. margin-left:auto pushes it to the right edge of the meta row. */
+.event-approx {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.9em;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  white-space: nowrap;
+}
+
 /* Wrapper for the category glyph injected by categorySwatch(). inline-flex keeps
    the 14px SVG optically centred against the uppercase text baseline. */
 .event-meta-swatch {

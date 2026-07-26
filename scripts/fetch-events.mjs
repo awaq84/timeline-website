@@ -481,6 +481,38 @@ const CATEGORIES = [
   },
 ];
 
+// Wikidata keeps a date's precision on the statement's value node, not on the
+// truthy `wdt:` triple, so a query that reads `wdt:P571` cannot tell "1101" from
+// "12th century" -- both arrive as 1101-01-01. That is how ~19,000 approximate
+// dates ended up asserted as exact years, with 615 of them piled onto /year/1101/.
+//
+// These blocks re-find the statement that produced the already-bound ?date and
+// read wikibase:timePrecision off it. Being OPTIONAL and joined on a bound ?date,
+// they can only ever add a column: no row that matched before can drop out.
+//
+// Two details matter. The predicates are written out per property rather than
+// bound through `?prop wikibase:claim ?p`, because the generic form makes
+// Blazegraph scan every statement in the graph and reliably 504s. And these must
+// be emitted *after* the BIND that sets ?date, since SPARQL evaluates a BIND in
+// document order -- placed earlier, ?date would still be unbound and each block
+// would match every statement on the item.
+//
+//   6 millennium  7 century  8 decade  9 year  10 month  11 day
+function precisionBlocks(dateProps) {
+  const paths = dateProps.map((p, i) => {
+    const pid = p.replace(/^wdt:/, "");
+    return `OPTIONAL { ?item p:${pid} ?pst${i} . ?pst${i} psv:${pid} ?pvn${i} .
+    ?pvn${i} wikibase:timeValue ?date ; wikibase:timePrecision ?prec${i} . }`;
+  });
+  const coalesce = dateProps.map((_, i) => `?prec${i}`).join(", ");
+  // Coalesced in the same property order as ?date itself, so the precision comes
+  // from the property that supplied the date. An item can also hold two
+  // statements with the same value at different precisions, which yields two rows
+  // differing only in ?precision; fetchCategory()'s dedup keeps the more precise.
+  return `${paths.join("\n  ")}
+  BIND(COALESCE(${coalesce}) AS ?precision)`;
+}
+
 function eventQuery(cfg) {
   // types is optional. The Exploration & Discovery pass keyed on P575 (time of
   // discovery or invention) deliberately omits it: what gets discovered is
@@ -514,12 +546,13 @@ function eventQuery(cfg) {
   const locCoalesce = locProps.map((_, i) => `?rloc${i}`).join(", ");
 
   return `
-SELECT DISTINCT ?item ?itemLabel ?date ?coord ?locLabel ?sitelinks ?article ?desc WHERE {
+SELECT DISTINCT ?item ?itemLabel ?date ?precision ?coord ?locLabel ?sitelinks ?article ?desc WHERE {
   ${typeClause}
   ${dateBindings}
   BIND(COALESCE(${coalesce}) AS ?date)
   FILTER(BOUND(?date))
   FILTER(YEAR(?date) >= ${MIN_YEAR} && YEAR(?date) <= ${MAX_YEAR})
+  ${precisionBlocks(cfg.dateProps)}
   OPTIONAL { ?item wdt:P625 ?c0 . }
   ${locBindings}
   BIND(COALESCE(${locCoordCoalesce}) AS ?coord)
@@ -548,11 +581,12 @@ function personQuery(cfg) {
   const placeProp = birth ? "wdt:P19" : "wdt:P20";
   const placeFallbackProp = birth ? "wdt:P20" : "wdt:P19";
   return `
-SELECT DISTINCT ?item ?itemLabel ?date ?coord ?locLabel ?sitelinks ?article ?desc WHERE {
+SELECT DISTINCT ?item ?itemLabel ?date ?precision ?coord ?locLabel ?sitelinks ?article ?desc WHERE {
   VALUES ?pos { ${posValues} }
   ?item ${posProp} ?pos .
   ?item ${dateProp} ?date .
   FILTER(YEAR(?date) >= ${MIN_YEAR} && YEAR(?date) <= ${MAX_YEAR})
+  ${precisionBlocks([dateProp])}
   ${
     cfg.requirePlace
       ? // No fallback: the coordinate must be the place matching this life
@@ -688,8 +722,17 @@ function toEvent(binding, category, opts = {}) {
   // of Buddhism") instead of throwing it away for a bare "X was born." line.
   const summary = opts.summary ? opts.summary(rawTitle, year, location, desc) : desc || `${title} (${category}).`;
 
+  // Only recorded when the date is vaguer than a year (6 millennium, 7 century,
+  // 8 decade). Year, month and day precision all pin the year we store, so
+  // marking them would put a redundant field on ~85% of the dataset. An absent
+  // ?precision means Wikidata had no statement node for the date, which is
+  // treated the same way -- assume the year is good rather than invent doubt.
+  const rawPrecision = parseInt(binding.precision?.value ?? "", 10);
+  const prec = Number.isFinite(rawPrecision) && rawPrecision < 9 ? rawPrecision : undefined;
+
   return {
     year,
+    ...(prec !== undefined ? { prec } : {}),
     lat: coord.lat,
     lng: coord.lng,
     title,
@@ -747,7 +790,12 @@ async function fetchCategory(cfg) {
       const ev = toEvent(b, sub.category || cfg.name, sub);
       if (!ev) continue;
       const existing = seen.get(ev._id);
-      if (!existing || (!existing.location && ev.location)) seen.set(ev._id, ev);
+      // An item holding two statements with the same date value at different
+      // precisions returns two rows that differ only in ?precision. Prefer the
+      // more precise reading: it's the one Wikidata's own editors refined, and
+      // arrival order here is otherwise arbitrary.
+      const morePrecise = existing && existing.prec !== undefined && ev.prec === undefined;
+      if (!existing || morePrecise || (!existing.location && ev.location)) seen.set(ev._id, ev);
     }
     if (i < subConfigs.length - 1) await sleep(2000);
   }
