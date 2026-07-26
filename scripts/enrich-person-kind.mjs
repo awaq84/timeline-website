@@ -29,7 +29,7 @@ const CACHE_DIR = path.join(__dirname, "..", "data", ".cache");
 const CACHE_PATH = path.join(CACHE_DIR, "person-kind.json");
 
 const ENDPOINT = "https://query.wikidata.org/sparql";
-const USER_AGENT = "HistoricalAtlas/1.0 (https://github.com/awaq84/timeline-website)";
+const USER_AGENT = "TimelineHistory/1.0 (https://github.com/awaq84/timeline-website)";
 const BATCH_SIZE = 300;
 
 // The categories whose fetch config includes a mode:"person" sub-query. Anything

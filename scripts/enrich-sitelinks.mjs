@@ -33,7 +33,7 @@ const CACHE_DIR = path.join(__dirname, "..", "data", ".cache");
 const CACHE_PATH = path.join(CACHE_DIR, "sitelinks.json");
 
 const ENDPOINT = "https://query.wikidata.org/sparql";
-const USER_AGENT = "HistoricalAtlas/1.0 (https://github.com/awaq84/timeline-website)";
+const USER_AGENT = "TimelineHistory/1.0 (https://github.com/awaq84/timeline-website)";
 const BATCH_SIZE = 400;
 
 async function sleep(ms) {

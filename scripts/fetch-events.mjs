@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENDPOINT = "https://query.wikidata.org/sparql";
-const USER_AGENT = "HistoricalAtlasBuildScript/1.0 (personal educational project)";
+const USER_AGENT = "TimelineHistoryBuildScript/1.0 (personal educational project)";
 // These can be overridden via env vars to run a scoped pass over a narrower
 // year window (e.g. to backfill a historically underrepresented era) without
 // touching the default full-range behavior.
