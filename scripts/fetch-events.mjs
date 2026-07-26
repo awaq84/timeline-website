@@ -76,6 +76,27 @@ const PERSON_SUMMARY = {
     [location ? `Died in ${location}.` : `${name} died.`, desc ? `${desc}.` : ""].filter(Boolean).join(" "),
 };
 
+// A person sub-query hanging off a topical category. Several categories find
+// people this way -- scientists, explorers, popes, activists, athletes -- and
+// every row they produce is a life event, so it is filed under People rather
+// than under the category whose config found it. A scientist's death is a fact
+// about a person, not about science; leaving these rows on the topic is what put
+// "Giovanni Battista Calvi" (an engineer who died in 1564) in Science &
+// Technology, reading as though he were a technology.
+//
+// requirePlace pins the marker at the place of death with no birthplace
+// fallback, which is what makes the "Died in X." summary safe to assert. It
+// costs some rows; the alternative is a mispinned marker and a false sentence.
+const personDeathPass = (cfg) => ({
+  mode: "person",
+  personDate: "death",
+  requirePlace: true,
+  category: "People",
+  titleSuffix: "died",
+  summary: PERSON_SUMMARY.died,
+  ...cfg,
+});
+
 const CATEGORIES = [
   {
     name: "Wars & Conflicts",
@@ -137,47 +158,173 @@ const CATEGORIES = [
     ],
   },
   {
+    // This category used to consist of a single person query -- 10,912 rows,
+    // every one of them a scientist's date of death titled with a bare name. It
+    // read as though the people *were* technologies, and once those rows moved
+    // to People (scripts/migrate-person-events.mjs) the category was left with
+    // 4 events. So the topic is now carried by the places where science and
+    // technology actually happen and can be pinned to a map: the founding of
+    // research institutes, universities, hospitals, observatories and
+    // laboratories, plus discrete events like nuclear tests.
+    //
+    // Infrastructure that is engineering rather than science -- dams, canals,
+    // tunnels -- is deliberately left to Architecture & Engineering rather than
+    // double-filed here.
+    // The types are split across several passes rather than listed in one
+    // VALUES clause for the same reason PERSON_OCCUPATIONS is split: the query
+    // ends in ORDER BY DESC(?sitelinks), which forces a full sort of everything
+    // matched, so cost scales with how common the type is. All fourteen types in
+    // one query never returned inside Wikidata's 60s budget. Split up, each pass
+    // answers quickly -- and RAW_LIMIT then applies per pass instead of to the
+    // whole category, which raises the ceiling too.
     name: "Science & Technology",
-    mode: "person",
-    posProps: ["wdt:P106"],
-    posValues: [
-      "wd:Q169470",
-      "wd:Q593644",
-      "wd:Q170790",
-      "wd:Q11063",
-      "wd:Q205375",
-      "wd:Q81096",
-      "wd:Q82594",
-      "wd:Q864503",
+    mode: "event",
+    types: ["wd:Q3918"], // university -- the single biggest type, on its own
+    // Inception first: for an institution the founding date is the event.
+    dateProps: ["wdt:P571", "wdt:P585", "wdt:P580"],
+    minSitelinks: 2,
+    label: "university",
+    extra: [
+      {
+        mode: "event",
+        types: [
+          "wd:Q31855", // research institute
+          "wd:Q16917", // hospital
+        ],
+        dateProps: ["wdt:P571", "wdt:P585", "wdt:P580"],
+        minSitelinks: 2,
+        label: "research institute / hospital",
+      },
+      {
+        mode: "event",
+        types: [
+          "wd:Q1254933", // astronomical observatory
+          "wd:Q62832", // observatory
+          "wd:Q483242", // laboratory
+          "wd:Q588140", // science museum
+          "wd:Q148319", // planetarium
+          "wd:Q167346", // botanical garden
+          "wd:Q130825", // particle accelerator
+          "wd:Q366301", // research expedition
+        ],
+        dateProps: ["wdt:P571", "wdt:P585", "wdt:P580"],
+        minSitelinks: 2,
+        label: "observatories / labs / collections",
+      },
+      {
+        mode: "event",
+        types: [
+          "wd:Q159719", // power station
+          "wd:Q134447", // nuclear power plant
+          "wd:Q210112", // nuclear weapons testing
+        ],
+        dateProps: ["wdt:P571", "wdt:P585", "wdt:P580"],
+        minSitelinks: 2,
+        label: "power / nuclear",
+      },
+      // Scientists still get found here -- they just get filed under People now.
+      personDeathPass({
+        posProps: ["wdt:P106"],
+        posValues: [
+          "wd:Q169470",
+          "wd:Q593644",
+          "wd:Q170790",
+          "wd:Q11063",
+          "wd:Q205375",
+          "wd:Q81096",
+          "wd:Q82594",
+          "wd:Q864503",
+        ],
+        minSitelinks: 15,
+        label: "scientist",
+      }),
     ],
-    minSitelinks: 15,
   },
   {
     name: "Exploration & Discovery",
     mode: "event",
-    types: ["wd:Q2401485", "wd:Q1194369", "wd:Q3533809"],
+    types: [
+      "wd:Q2401485", // expedition
+      "wd:Q1194369", // first ascent
+      "wd:Q3533809",
+      "wd:Q906512", // shipwrecking
+      "wd:Q852190", // shipwreck
+      "wd:Q1135885", // circumnavigation
+      "wd:Q69502940", // polar expedition
+    ],
     dateProps: ["wdt:P585", "wdt:P580", "wdt:P571"],
     minSitelinks: 0,
     extra: [
       {
-        // Notable explorers, using date of death as the event.
-        mode: "person",
+        // The discoveries themselves, via P575 (time of discovery or
+        // invention): the year a cave, island, meteorite, tomb or buried
+        // artefact was found, pinned where it was found. No type filter -- see
+        // eventQuery(). This is the only pass in the dataset that captures
+        // discovery as an event rather than as a person's biography.
+        mode: "event",
+        dateProps: ["wdt:P575"],
+        minSitelinks: 2,
+        label: "discovery (P575)",
+      },
+      // Notable explorers, using date of death as the event. Files under People.
+      personDeathPass({
         posProps: ["wdt:P106"],
         posValues: ["wd:Q11900058"],
         minSitelinks: 3,
-      },
+        label: "explorer",
+      }),
     ],
   },
   {
     name: "Religion & Belief Systems",
     mode: "event",
-    types: ["wd:Q51645", "wd:Q12546", "wd:Q301585", "wd:Q3774758", "wd:Q1827102", "wd:Q46999986"],
-    dateProps: ["wdt:P585", "wdt:P580"],
+    types: [
+      "wd:Q51645", // ecumenical council
+      "wd:Q12546",
+      "wd:Q301585",
+      "wd:Q3774758",
+      "wd:Q1827102",
+      "wd:Q46999986",
+      "wd:Q111161", // synod
+      "wd:Q186431", // papal conclave
+      "wd:Q2061186", // religious order
+    ],
+    dateProps: ["wdt:P585", "wdt:P580", "wdt:P571"],
     minSitelinks: 0,
+    label: "councils / synods / orders",
     extra: [
       {
-        // Popes and other major religious leadership positions, using date of death.
-        mode: "person",
+        // Places of worship, by foundation date. Architecture & Engineering
+        // already covers church buildings and monasteries, so Christianity was
+        // the only religion with any presence on the map at all -- mosques,
+        // synagogues and temples were absent from the dataset entirely. None of
+        // these types are duplicated in Architecture.
+        mode: "event",
+        types: [
+          "wd:Q32815", // mosque
+          "wd:Q34627", // synagogue
+          "wd:Q2977", // cathedral
+        ],
+        dateProps: ["wdt:P571", "wdt:P585", "wdt:P580"],
+        minSitelinks: 1,
+        label: "mosques / synagogues / cathedrals",
+      },
+      {
+        mode: "event",
+        types: [
+          "wd:Q160742", // abbey
+          "wd:Q44539", // temple
+          "wd:Q842402", // Hindu temple
+          "wd:Q697295", // shrine
+          "wd:Q1129743", // pagoda
+        ],
+        dateProps: ["wdt:P571", "wdt:P585", "wdt:P580"],
+        minSitelinks: 1,
+        label: "abbeys / temples / shrines",
+      },
+      // Popes and other major religious leadership positions, using date of
+      // death. Files under People.
+      personDeathPass({
         posProps: ["wdt:P39"],
         posValues: [
           "wd:Q19546",
@@ -189,7 +336,8 @@ const CATEGORIES = [
           "wd:Q1410729",
         ],
         minSitelinks: 2,
-      },
+        label: "religious leader",
+      }),
     ],
   },
   {
@@ -235,13 +383,13 @@ const CATEGORIES = [
     dateProps: ["wdt:P585", "wdt:P580"],
     minSitelinks: 2,
     extra: [
-      {
-        // Notable activists, using date of death as the event.
-        mode: "person",
+      // Notable activists, using date of death as the event. Files under People.
+      personDeathPass({
         posProps: ["wdt:P106"],
         posValues: ["wd:Q15253558"],
         minSitelinks: 3,
-      },
+        label: "activist",
+      }),
     ],
   },
   {
@@ -252,19 +400,54 @@ const CATEGORIES = [
     minSitelinks: 3,
   },
   {
+    // Deliberately excludes "sports season" (Q27020041): it matches 13k+ modern
+    // league seasons, which would outnumber every other kind of event in the
+    // category and bury the map under "2019-20 Premier League" pins.
     name: "Sports & Entertainment",
     mode: "event",
-    types: ["wd:Q159821", "wd:Q13406554", "wd:Q19317", "wd:Q220505", "wd:Q868557"],
-    dateProps: ["wdt:P585", "wdt:P580"],
+    types: [
+      "wd:Q159821",
+      "wd:Q13406554",
+      "wd:Q19317",
+      "wd:Q220505", // film festival
+      "wd:Q868557", // music festival
+    ],
+    dateProps: ["wdt:P585", "wdt:P580", "wdt:P571"],
     minSitelinks: 2,
+    label: "competitions / festivals",
     extra: [
       {
-        // Notable athletes, actors, musicians and comedians, using date of death.
-        mode: "person",
+        // Venues, by opening date -- the places entertainment happens.
+        mode: "event",
+        types: [
+          "wd:Q24354", // theatre building
+          "wd:Q153562", // opera house
+          "wd:Q194195", // amusement park
+        ],
+        dateProps: ["wdt:P571", "wdt:P585", "wdt:P580"],
+        minSitelinks: 2,
+        label: "theatres / opera houses / parks",
+      },
+      {
+        mode: "event",
+        types: [
+          "wd:Q1344963", // world championship
+          "wd:Q27787439", // film festival edition
+          "wd:Q41582469", // music festival edition
+          "wd:Q12166442", // association football match
+        ],
+        dateProps: ["wdt:P585", "wdt:P580", "wdt:P571"],
+        minSitelinks: 2,
+        label: "championships / festival editions",
+      },
+      // Notable athletes, actors, musicians and comedians, using date of death.
+      // Files under People.
+      personDeathPass({
         posProps: ["wdt:P106"],
         posValues: ["wd:Q2066131", "wd:Q33999", "wd:Q639669", "wd:Q245068"],
         minSitelinks: 8,
-      },
+        label: "performer/athlete",
+      }),
     ],
   },
   {
@@ -299,9 +482,19 @@ const CATEGORIES = [
 ];
 
 function eventQuery(cfg) {
-  const typeValues = cfg.types.join(" ");
+  // types is optional. The Exploration & Discovery pass keyed on P575 (time of
+  // discovery or invention) deliberately omits it: what gets discovered is
+  // islands, caves, meteorites, tombs and archaeological finds, and any P31 list
+  // covering that would be arbitrary and lossy. P575 is rare enough (~2k items
+  // with coordinates) to be selective on its own, so the date property carries
+  // the whole filter.
+  const typeClause = cfg.types ? `VALUES ?type { ${cfg.types.join(" ")} }\n  ?item wdt:P31 ?type .` : "";
+  // Normally P31 anchors the query and every date property is OPTIONAL, so an
+  // item matching any one of them qualifies. With no type clause there'd be
+  // nothing binding ?item outside an OPTIONAL, which is not a selective query at
+  // all -- so the first date property becomes the required anchor instead.
   const dateBindings = cfg.dateProps
-    .map((p, i) => `OPTIONAL { ?item ${p} ?d${i} . }`)
+    .map((p, i) => (!cfg.types && i === 0 ? `?item ${p} ?d${i} .` : `OPTIONAL { ?item ${p} ?d${i} . }`))
     .join("\n  ");
   const coalesce = cfg.dateProps.map((_, i) => `?d${i}`).join(", ");
 
@@ -322,8 +515,7 @@ function eventQuery(cfg) {
 
   return `
 SELECT DISTINCT ?item ?itemLabel ?date ?coord ?locLabel ?sitelinks ?article ?desc WHERE {
-  VALUES ?type { ${typeValues} }
-  ?item wdt:P31 ?type .
+  ${typeClause}
   ${dateBindings}
   BIND(COALESCE(${coalesce}) AS ?date)
   FILTER(BOUND(?date))
@@ -439,10 +631,24 @@ function toDisplayYear(isoDate) {
   return astronomicalYear <= 0 ? astronomicalYear - 1 : astronomicalYear;
 }
 
+// Wikidata coordinates are not necessarily on Earth. A non-terrestrial point is
+// serialised with an explicit globe URI -- "<http://www.wikidata.org/entity/Q111>
+// Point(267.35 -7.231)" for Mars -- and uses 0..360 longitude, so it parses
+// cleanly and then lands nowhere on an Earth map. The P575 discovery pass makes
+// this reachable: rovers and probes discover craters on Mercury and rocks on
+// Mars, and those are real discoveries with real dates.
+const EARTH_GLOBE = "http://www.wikidata.org/entity/Q2";
+
 function parseCoord(wkt) {
+  const globe = /^<([^>]+)>/.exec(wkt);
+  if (globe && globe[1] !== EARTH_GLOBE) return null;
   const match = /Point\(([-0-9.]+)\s+([-0-9.]+)\)/.exec(wkt);
   if (!match) return null;
-  return { lng: parseFloat(match[1]), lat: parseFloat(match[2]) };
+  const lng = parseFloat(match[1]);
+  const lat = parseFloat(match[2]);
+  // Backstop for anything that omits the globe URI but still isn't Earth-shaped.
+  if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lng, lat };
 }
 
 function toEvent(binding, category, opts = {}) {
@@ -534,7 +740,11 @@ async function fetchCategory(cfg) {
     // "dissolved") are applied correctly and don't get mixed up across
     // sub-queries the way a single merged-bindings pass would.
     for (const b of bindings) {
-      const ev = toEvent(b, cfg.name, sub);
+      // A sub-query may file its rows under a different category than the one
+      // it's configured beside. Person sub-queries use this: a scientist's death
+      // is a fact about a person, not a technology, so it belongs in People even
+      // though the query that finds it lives under Science & Technology.
+      const ev = toEvent(b, sub.category || cfg.name, sub);
       if (!ev) continue;
       const existing = seen.get(ev._id);
       if (!existing || (!existing.location && ev.location)) seen.set(ev._id, ev);
