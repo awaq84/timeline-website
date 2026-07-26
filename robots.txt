@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# The dataset is a build artifact, not a page -- no value in crawling 19MB of JSON.
+Disallow: /data/
+Disallow: /scripts/
+
+Sitemap: https://awaq84.github.io/timeline-website/sitemap.xml
