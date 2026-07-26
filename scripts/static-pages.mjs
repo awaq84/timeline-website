@@ -68,7 +68,7 @@ export const STATIC_PAGES = [
   <h2>Software</h2>
   <ul>
     <li><a href="https://d3js.org/" rel="noopener">D3</a> — visualisation library, <a href="https://github.com/d3/d3/blob/main/LICENSE" rel="noopener">ISC licence</a>.</li>
-    <li><a href="https://github.com/topojson/topojson-client" rel="noopener">topojson-client</a> — TopoJSON decoding, <a href="https://github.com/topojson/topojson-client/blob/master/LICENSE.md" rel="noopener">ISC licence</a>.</li>
+    <li><a href="https://github.com/topojson/topojson-client" rel="noopener">topojson-client</a> — TopoJSON decoding, <a href="https://github.com/topojson/topojson-client/blob/master/LICENSE" rel="noopener">ISC licence</a>.</li>
   </ul>
 
   <h2>Corrections</h2>
