@@ -33,7 +33,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="style.css?v=14">
+<link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
 
@@ -118,8 +118,11 @@
 
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
-<script src="data/events.js?v=12"></script>
-<script src="data/discover.js?v=2"></script>
-<script src="app.js?v=18"></script>
+<!-- The event data is NOT loaded here. It's split into data/index.json plus
+     on-demand era chunks under data/events/, fetched by app.js -- see the
+     "Data access" section there. Loading the full 28MB dataset up front cost
+     roughly six seconds before the first marker appeared. -->
+<script src="data/discover.js?v=3"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>

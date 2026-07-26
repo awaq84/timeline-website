@@ -824,6 +824,16 @@ main {
   text-align: center;
 }
 
+/* Applied only when an era chunk takes longer than ~180ms to arrive, so the
+   usual instant load doesn't flash. Dims the outgoing year's cards in place
+   rather than blanking the column, which would collapse its height and jump
+   the page. */
+.events-list.loading {
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 140ms ease-in;
+}
+
 @media (max-width: 800px) {
   .content-section {
     grid-template-columns: 1fr;

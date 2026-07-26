@@ -104,12 +104,119 @@ function formatYear(y) {
   return y < 0 ? `${Math.abs(y)} BCE` : `${y}`;
 }
 
-function getFilteredEvents() {
-  return EVENTS.filter((e) => state.activeCategories.has(e.category));
+// ---- Data access ----
+//
+// The dataset is 111,389 events / 28MB. Shipping all of it before the first
+// paint cost about six seconds on a good connection and far worse on a phone,
+// so scripts/build-chunks.mjs splits it into a 27KB index plus 69 era chunks
+// fetched on demand. The map only ever displays one year, and a year is never
+// split across chunks, so a render touches exactly one of them.
+//
+// INDEX holds every year that has events together with a bitmask of which
+// categories appear in it. That is deliberately enough to drive the slider, the
+// step/play buttons and the nearest-year hint *synchronously* -- those have to
+// answer "which years have anything" across the whole timeline, and making them
+// wait on the network would feel broken.
+
+let INDEX = null;
+let catBit = new Map(); // category name -> its bit position in the year mask
+
+// Resolved chunks and in-flight requests are tracked separately so callers can
+// ask "is this already here?" without going through a promise. Awaiting even an
+// already-resolved promise costs a microtask, and that is enough to make the
+// slider visibly trail the handle while dragging.
+const chunkData = new Map();
+const chunkPending = new Map();
+
+// Roughly 18,000 events held at once. Scrubbing the full timeline would
+// otherwise accumulate all 69 chunks, and 28MB of JSON inflates to well over
+// 100MB once parsed into objects -- enough to get the tab killed on a phone.
+const MAX_CACHED_CHUNKS = 12;
+
+const chunkUrl = (n) => `data/events/${String(n).padStart(3, "0")}.json`;
+
+async function loadIndex() {
+  const res = await fetch("data/index.json");
+  if (!res.ok) throw new Error(`data/index.json: HTTP ${res.status}`);
+  INDEX = await res.json();
+  catBit = new Map(INDEX.categories.map((c, i) => [c, i]));
 }
 
+// chunkStarts ascends and the ranges tile the timeline with no gaps, so the
+// chunk holding a year is the last one starting at or before it. Binary search
+// because this runs on every slider tick.
+function chunkForYear(year) {
+  const starts = INDEX.chunkStarts;
+  if (year <= starts[0]) return 0;
+  let lo = 0;
+  let hi = starts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (starts[mid] <= year) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+
+function loadChunk(n) {
+  const have = chunkData.get(n);
+  if (have) return Promise.resolve(have);
+  const inFlight = chunkPending.get(n);
+  if (inFlight) return inFlight;
+
+  const p = fetch(chunkUrl(n))
+    .then((res) => {
+      if (!res.ok) throw new Error(`${chunkUrl(n)}: HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((rows) => {
+      chunkPending.delete(n);
+      chunkData.set(n, rows);
+      // Map iterates in insertion order, so the first key is the oldest.
+      while (chunkData.size > MAX_CACHED_CHUNKS) {
+        chunkData.delete(chunkData.keys().next().value);
+      }
+      return rows;
+    })
+    .catch((err) => {
+      // Forget the failure rather than caching it, so scrubbing back to this
+      // era retries instead of showing the same error forever.
+      chunkPending.delete(n);
+      throw err;
+    });
+
+  chunkPending.set(n, p);
+  return p;
+}
+
+// Warm the neighbours so stepping or playing across a chunk boundary doesn't
+// stall. Failures here are irrelevant -- the real render will retry and report.
+function prefetchNeighbours(n) {
+  for (const m of [n + 1, n - 1]) {
+    if (m >= 0 && m < INDEX.chunkStarts.length && !chunkData.has(m) && !chunkPending.has(m)) {
+      loadChunk(m).catch(() => {});
+    }
+  }
+}
+
+function activeMask() {
+  let mask = 0;
+  for (const c of state.activeCategories) {
+    const bit = catBit.get(c);
+    if (bit !== undefined) mask |= 1 << bit;
+  }
+  return mask;
+}
+
+// Years carrying at least one event in an active category. Already ascending in
+// the index, so no sort is needed.
 function getEventYears() {
-  return [...new Set(getFilteredEvents().map((e) => e.year))].sort((a, b) => a - b);
+  if (!INDEX) return [];
+  const mask = activeMask();
+  if (!mask) return [];
+  const out = [];
+  for (const [y, m] of INDEX.years) if (m & mask) out.push(y);
+  return out;
 }
 
 // Builds a marker-lookalike swatch (coloured disc + category glyph) for use in
@@ -686,15 +793,70 @@ function hideMapTooltip() {
   mapTooltipEl.classList.remove("visible");
 }
 
-function renderAll() {
+// Every render is stamped with a token. Dragging the slider fires renders far
+// faster than chunks arrive, and without this an early request resolving late
+// would repaint the map with a year the user has already scrubbed past.
+let renderToken = 0;
+let loadingTimer = null;
+let pendingSpotlight = null;
+
+function paintYear(rows) {
   // Deselecting a category no longer removes its markers -- they stay on the
   // map greyed out and unlabelled, so you keep the geographic context of what
   // you filtered out and can click one to switch it back on. The events list,
   // by contrast, only shows what's selected.
-  const yearEvents = EVENTS.filter((e) => e.year === state.year);
-  yearBadge.textContent = formatYear(state.year);
+  const yearEvents = rows.filter((e) => e.year === state.year);
   renderEventsList(yearEvents.filter((e) => state.activeCategories.has(e.category)));
   renderMarkers(yearEvents);
+
+  // Set by jumpToEvent() before the render it triggered. Applied here because
+  // the markers only exist now, and consumed so it fires once rather than on
+  // every subsequent repaint.
+  if (pendingSpotlight) {
+    spotlightMarker(pendingSpotlight);
+    pendingSpotlight = null;
+  }
+}
+
+function renderAll() {
+  if (!INDEX) return;
+  const token = ++renderToken;
+  yearBadge.textContent = formatYear(state.year);
+
+  const n = chunkForYear(state.year);
+  const cached = chunkData.get(n);
+  if (cached) {
+    clearTimeout(loadingTimer);
+    eventsListEl.classList.remove("loading");
+    paintYear(cached);
+    prefetchNeighbours(n);
+    return;
+  }
+
+  // Only admit to loading if it's slow enough to notice. Most chunk fetches
+  // land in well under this, and flashing a spinner for 40ms reads as a glitch.
+  clearTimeout(loadingTimer);
+  loadingTimer = setTimeout(() => {
+    if (token === renderToken) eventsListEl.classList.add("loading");
+  }, 180);
+
+  loadChunk(n)
+    .then((rows) => {
+      if (token !== renderToken) return; // a later scrub owns the view now
+      clearTimeout(loadingTimer);
+      eventsListEl.classList.remove("loading");
+      paintYear(rows);
+      prefetchNeighbours(n);
+    })
+    .catch((err) => {
+      if (token !== renderToken) return;
+      clearTimeout(loadingTimer);
+      eventsListEl.classList.remove("loading");
+      console.error(err);
+      eventsListEl.innerHTML = `<div class="empty-state">Couldn't load events for ${formatYear(
+        state.year
+      )}. Check your connection and move the slider to retry.</div>`;
+    });
 }
 
 // ---- Discover ----
@@ -710,19 +872,18 @@ function initDiscovery() {
     return;
   }
 
-  // Resolve on year|title, not title alone: ~300 titles are shared by two
-  // events (Roman consuls with identical names, cities besieged more than once),
-  // so a title-only map would silently bind a prompt to the wrong year.
-  // Prompts carry a year purely as this lookup key -- the year actually
-  // displayed is read back off the resolved event, so the two can't drift.
-  const byKey = new Map(EVENTS.map((e) => [`${e.year}|${e.title}`, e]));
-  let unresolved = 0;
-  discoveryResolved = DISCOVERY_PROMPTS.map((p) => ({ ...p, event: byKey.get(`${p.year}|${p.title}`) })).filter((p) => {
-    if (!p.event) unresolved++;
-    return Boolean(p.event);
-  });
-  if (unresolved) {
-    console.warn(`Discover: ${unresolved} prompt(s) had no matching event; rerun scripts/build-discover.mjs`);
+  // Prompts used to be resolved against the in-memory EVENTS array at startup.
+  // With the dataset chunked there is nothing to resolve against, so
+  // build-discover.mjs bakes year, category and coordinate into each entry --
+  // everything jumpToEvent() and spotlightMarker() need. A prompt is therefore
+  // already event-shaped and usable as-is.
+  //
+  // The cost is that discover.js is now a copy of part of the dataset: regenerate
+  // it whenever events.js changes or prompts will jump to a year that has moved.
+  discoveryResolved = DISCOVERY_PROMPTS.filter((p) => p.lat != null && p.lng != null);
+  const stale = DISCOVERY_PROMPTS.length - discoveryResolved.length;
+  if (stale) {
+    console.warn(`Discover: ${stale} prompt(s) missing coordinates; rerun scripts/build-discover.mjs`);
   }
 
   if (!discoveryResolved.length) return;
@@ -737,7 +898,7 @@ function initDiscovery() {
   });
 
   discoverGoBtnEl?.addEventListener("click", () => {
-    if (discoveryCurrent) jumpToEvent(discoveryCurrent.event);
+    if (discoveryCurrent) jumpToEvent(discoveryCurrent);
   });
 }
 
@@ -754,7 +915,7 @@ function showRandomDiscoveryPrompt() {
   discoveryCurrent = next;
 
   discoveryPromptEl.innerHTML = `Discover what else was going on in the world when <strong>${next.question}</strong> (${formatYear(
-    next.event.year
+    next.year
   )})`;
 }
 
@@ -765,10 +926,15 @@ function jumpToEvent(event) {
   buildCategoryFilters();
   state.year = event.year;
   yearSlider.value = event.year;
+
+  // Hand the spotlight to the render rather than applying it here. Jumping to a
+  // distant year usually means fetching that era's chunk, so the marker won't
+  // exist yet -- spotlighting now would silently match nothing. paintYear()
+  // applies it once the markers are actually on the map.
+  pendingSpotlight = event;
   renderAll();
 
   mapSectionEl?.scrollIntoView({ behavior: "smooth", block: "start" });
-  spotlightMarker(event);
 }
 
 function spotlightMarker(target) {
@@ -849,9 +1015,7 @@ playBtn.addEventListener("click", () => {
 // ---- Init ----
 
 function initTimelineRange() {
-  const years = EVENTS.map((e) => e.year);
-  const minYear = Math.min(...years);
-  const maxYear = Math.max(...years);
+  const { minYear, maxYear } = INDEX;
 
   yearSlider.min = minYear;
   yearSlider.max = maxYear;
@@ -873,17 +1037,32 @@ function initTimelineRange() {
   }
 
   if (datasetStatEl) {
-    const byCategory = new Map();
-    for (const e of EVENTS) byCategory.set(e.category, (byCategory.get(e.category) || 0) + 1);
+    const byCategory = new Map(INDEX.categories.map((c, i) => [c, INDEX.categoryCounts[i]]));
     const breakdown = CATEGORY_ORDER.filter((c) => byCategory.has(c))
       .map((c) => `${c} (${byCategory.get(c)})`)
       .join(", ");
-    datasetStatEl.innerHTML = `<strong>${EVENTS.length.toLocaleString()} events</strong> loaded, spanning ${formatYear(minYear)} &ndash; ${formatYear(maxYear)}.`;
+    datasetStatEl.innerHTML = `<strong>${INDEX.total.toLocaleString()} events</strong> spanning ${formatYear(minYear)} &ndash; ${formatYear(maxYear)}.`;
     datasetStatEl.title = breakdown;
   }
 }
 
-initTimelineRange();
-buildCategoryFilters();
-initMap();
-initDiscovery();
+// ---- Boot ----
+//
+// Everything downstream reads INDEX, so the index has to land before any of it
+// runs. The world map and the first year's chunk are then fetched in parallel
+// by initMap() and renderAll().
+async function init() {
+  try {
+    await loadIndex();
+  } catch (err) {
+    console.error(err);
+    eventsListEl.innerHTML = `<div class="empty-state">Couldn't load the timeline data. Please reload the page.</div>`;
+    return;
+  }
+  initTimelineRange();
+  buildCategoryFilters();
+  initMap();
+  initDiscovery();
+}
+
+init();

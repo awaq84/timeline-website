@@ -1,11 +1,11 @@
 User-agent: *
 Allow: /
 
-# app.js builds the whole page from these two files, so a crawler blocked from
-# them renders an empty map and indexes nothing but the header. Listed before the
-# Disallow because the most specific matching rule wins. events.js is large, but
-# a heavy crawl beats having no indexable content at all.
-Allow: /data/events.js
+# app.js builds the whole page from these, so a crawler blocked from them renders
+# an empty map and indexes nothing but the header. Listed before the Disallow
+# because the most specific matching rule wins.
+Allow: /data/index.json
+Allow: /data/events/
 Allow: /data/discover.js
 
 # The rest of data/ is build intermediates and scripts/ is the offline Wikidata
