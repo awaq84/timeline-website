@@ -660,6 +660,66 @@ main {
   margin: 0 0 16px;
 }
 
+/* The events heading and its link out to the static page for the same year. */
+.events-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.events-head h2 { margin: 0; }
+
+.year-page-link {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.year-page-link:hover { text-decoration: underline; }
+
+.eras-section {
+  margin-top: 20px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 24px;
+  padding: 26px 28px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.eras-section h2 {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.era-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.era-links a {
+  padding: 6px 13px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.82rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.era-links a:hover {
+  border-color: var(--panel-border-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .category-list {
   display: flex;
   flex-direction: column;

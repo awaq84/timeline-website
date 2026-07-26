@@ -100,8 +100,11 @@ const discoverySectionEl = document.querySelector(".discovery-section");
 // because it's ~1000 entries: too big to read past, and regenerated rather than
 // edited. DISCOVERY_PROMPTS is the global it defines.
 
+// "BC" rather than "BCE" to match the static year pages, which use it because
+// it is what people actually search for -- "44 BC" outweighs "44 BCE" by a wide
+// margin, and the app links straight through to those pages.
 function formatYear(y) {
-  return y < 0 ? `${Math.abs(y)} BCE` : `${y}`;
+  return y < 0 ? `${Math.abs(y)} BC` : `${y}`;
 }
 
 // ---- Data access ----
@@ -322,6 +325,21 @@ function renderEventsList(currentEvents) {
     card.querySelector(".event-meta-swatch").appendChild(categorySwatch(e.category, 14));
     eventsListEl.appendChild(card);
   });
+}
+
+// Points at the static page for whatever year is on screen. It's the only link
+// from the app into /year/, which matters twice over: a reader gets a plain
+// readable version of the year they're looking at, and a crawler that lands on
+// "/" finds its way into the 2,451 year pages instead of seeing one page of
+// JavaScript.
+const yearPageLinkEl = document.getElementById("yearPageLink");
+function yearSlug(y) {
+  return y < 0 ? `${Math.abs(y)}-bc` : String(y);
+}
+function updateYearPageLink() {
+  if (!yearPageLinkEl) return;
+  yearPageLinkEl.href = `/year/${yearSlug(state.year)}/`;
+  yearPageLinkEl.textContent = `Full ${formatYear(state.year)} page →`;
 }
 
 function findNearestEventYear(year) {
@@ -822,6 +840,8 @@ function renderAll() {
   if (!INDEX) return;
   const token = ++renderToken;
   yearBadge.textContent = formatYear(state.year);
+  syncUrlToYear();
+  updateYearPageLink();
 
   const n = chunkForYear(state.year);
   const cached = chunkData.get(n);
@@ -1014,8 +1034,34 @@ playBtn.addEventListener("click", () => {
 
 // ---- Init ----
 
+// The static year pages under /year/ link back here as /?year=1969, and BC years
+// arrive negative (/?year=-44). Parsed before the range is applied so an
+// out-of-dataset year is clamped by the same code that clamps the default.
+function yearFromUrl() {
+  const raw = new URLSearchParams(location.search).get("year");
+  if (raw === null) return null;
+  const y = Number(raw);
+  return Number.isInteger(y) ? y : null;
+}
+
+// Keep the address bar in step with the slider so a view can be linked or
+// bookmarked. replaceState, not pushState: scrubbing fires this constantly and
+// pushing would bury the back button under hundreds of entries.
+let urlSyncTimer = null;
+function syncUrlToYear() {
+  clearTimeout(urlSyncTimer);
+  urlSyncTimer = setTimeout(() => {
+    const url = new URL(location.href);
+    url.searchParams.set("year", state.year);
+    history.replaceState(null, "", url);
+  }, 400);
+}
+
 function initTimelineRange() {
   const { minYear, maxYear } = INDEX;
+
+  const urlYear = yearFromUrl();
+  if (urlYear !== null) state.year = urlYear;
 
   yearSlider.min = minYear;
   yearSlider.max = maxYear;
