@@ -30,6 +30,52 @@ const RAW_LIMIT = Number(process.env.FETCH_RAW_LIMIT ?? 900);
 // low number to relax quality thresholds when scanning a sparse era.
 const MINSITELINKS_CAP = process.env.FETCH_MINSITELINKS_CAP != null ? Number(process.env.FETCH_MINSITELINKS_CAP) : null;
 
+// --- People category shared config ---
+// Shared between the birth and death passes of the People category so the two
+// halves can't silently drift apart (a QID added to only one pass would give a
+// person a death event but no birth event, or vice versa).
+
+// Positions held (P39): head of state, monarch, pope, emperor, pharaoh, etc.
+const PERSON_POSITION_QIDS = [
+  "wd:Q116",
+  "wd:Q12097",
+  "wd:Q19643",
+  "wd:Q39018",
+  "wd:Q842606",
+  "wd:Q37110",
+  "wd:Q65997",
+  "wd:Q30461",
+  "wd:Q14212",
+  "wd:Q48352",
+  "wd:Q2285706",
+];
+
+// Occupations (P106), each with its own notability floor. The floor is not a
+// quality judgement -- it's what keeps the query inside Wikidata's 60s budget.
+// personQuery() ends in ORDER BY DESC(?sitelinks), which forces a full sort of
+// every matching item, so cost scales with how many people hold the occupation,
+// not with LIMIT. "Politician" matches millions of items and 504s at a floor of
+// 6; at 40 it returns in seconds. Rarer occupations can afford a low floor.
+const PERSON_OCCUPATIONS = [
+  { qid: "wd:Q4964182", label: "philosopher", minSitelinks: 6 },
+  { qid: "wd:Q82955", label: "politician", minSitelinks: 40 },
+  { qid: "wd:Q49757", label: "poet", minSitelinks: 15 },
+  { qid: "wd:Q36180", label: "writer", minSitelinks: 25 },
+  { qid: "wd:Q201788", label: "historian", minSitelinks: 8 },
+  { qid: "wd:Q47064", label: "military personnel", minSitelinks: 10 },
+  { qid: "wd:Q189290", label: "military officer", minSitelinks: 12 },
+];
+
+// Keeps the Wikidata one-line description (the genuinely useful part) and
+// prepends the life event, so a card reads "Born in Lumbini. Indian
+// philosopher and founder of Buddhism." rather than just "The Buddha was born."
+const PERSON_SUMMARY = {
+  born: (name, year, location, desc) =>
+    [location ? `Born in ${location}.` : `${name} was born.`, desc ? `${desc}.` : ""].filter(Boolean).join(" "),
+  died: (name, year, location, desc) =>
+    [location ? `Died in ${location}.` : `${name} died.`, desc ? `${desc}.` : ""].filter(Boolean).join(" "),
+};
+
 const CATEGORIES = [
   {
     name: "Wars & Conflicts",
@@ -46,42 +92,48 @@ const CATEGORIES = [
     minSitelinks: 3,
   },
   {
-    name: "Historical Figures",
+    // People: births and deaths of notable figures, as two separate map events
+    // per person ("X born" / "X died"), each at its own year and place. The
+    // four sub-queries are the cross product of two axes:
+    //   - how the person is identified: position held (P39) vs occupation (P106)
+    //   - which life event: death (P570/P20) vs birth (P569/P19)
+    // Occupation-based passes matter most for antiquity and the early medieval
+    // period, where philosophers, generals and poets are often the only
+    // well-documented figures.
+    name: "People",
     mode: "person",
+    personDate: "birth",
+    requirePlace: true,
     posProps: ["wdt:P39"],
-    posValues: [
-      "wd:Q116",
-      "wd:Q12097",
-      "wd:Q19643",
-      "wd:Q39018",
-      "wd:Q842606",
-      "wd:Q37110",
-      "wd:Q65997",
-      "wd:Q30461",
-      "wd:Q14212",
-      "wd:Q48352",
-      "wd:Q2285706",
-    ],
+    posValues: PERSON_POSITION_QIDS,
     minSitelinks: 12,
+    titleSuffix: "born",
+    summary: PERSON_SUMMARY.born,
     extra: [
-      {
-        // Notable figures identified by occupation rather than a formal
-        // position held -- important for antiquity/early-medieval coverage,
-        // where philosophers, generals, poets and historians are often the
-        // only well-documented "events" (via date of death) available.
+      // One pass per occupation instead of a single VALUES clause covering all
+      // seven. "Writer" (Q36180) alone matches hundreds of thousands of items,
+      // and the combined query reliably blew past Wikidata's 60s limit (endless
+      // HTTP 504s at any RAW_LIMIT). Split up, each pass returns comfortably --
+      // and it raises the effective row cap, since RAW_LIMIT now applies per
+      // occupation rather than to all of them put together.
+      ...PERSON_OCCUPATIONS.map(({ qid, label, minSitelinks }) => ({
         mode: "person",
+        personDate: "birth",
+        requirePlace: true,
         posProps: ["wdt:P106"],
-        posValues: [
-          "wd:Q4964182",
-          "wd:Q82955",
-          "wd:Q49757",
-          "wd:Q36180",
-          "wd:Q201788",
-          "wd:Q47064",
-          "wd:Q189290",
-        ],
-        minSitelinks: 6,
-      },
+        posValues: [qid],
+        minSitelinks,
+        label,
+        titleSuffix: "born",
+        summary: PERSON_SUMMARY.born,
+      })),
+      // NOTE: the death half of this category is not fetched here. The 5,081
+      // events previously filed under "Historical Figures" were already
+      // death events (P570), so scripts/migrate-people.mjs relabels those in
+      // place rather than re-querying -- that preserves coverage built up over
+      // several earlier fetch runs, which a single capped query can't match.
+      // Those events keep a neutral summary because their coordinate may be a
+      // birthplace fallback (see requirePlace above).
     ],
   },
   {
@@ -294,17 +346,34 @@ LIMIT ${RAW_LIMIT}`;
 function personQuery(cfg) {
   const posValues = cfg.posValues.join(" ");
   const posProp = cfg.posProps[0];
+  // Every category except People frames a person as a single event at their
+  // date of death (P570), pinned at their place of death (P20) and falling
+  // back to place of birth (P19). cfg.personDate === "birth" flips both, so
+  // the People category can surface the same person twice -- once born, once
+  // died -- as two independent map events.
+  const birth = cfg.personDate === "birth";
+  const dateProp = birth ? "wdt:P569" : "wdt:P570";
+  const placeProp = birth ? "wdt:P19" : "wdt:P20";
+  const placeFallbackProp = birth ? "wdt:P20" : "wdt:P19";
   return `
 SELECT DISTINCT ?item ?itemLabel ?date ?coord ?locLabel ?sitelinks ?article ?desc WHERE {
   VALUES ?pos { ${posValues} }
   ?item ${posProp} ?pos .
-  ?item wdt:P570 ?date .
+  ?item ${dateProp} ?date .
   FILTER(YEAR(?date) >= ${MIN_YEAR} && YEAR(?date) <= ${MAX_YEAR})
-  OPTIONAL { ?item wdt:P20 ?loc0 . ?loc0 wdt:P625 ?c0 . }
-  OPTIONAL { ?item wdt:P19 ?loc1 . ?loc1 wdt:P625 ?c1 . }
+  ${
+    cfg.requirePlace
+      ? // No fallback: the coordinate must be the place matching this life
+        // event. Falling back to the *other* place (birthplace for a death
+        // event, say) both mispins the marker and makes it impossible to write
+        // an accurate "Born in X" / "Died in X" summary. Costs some rows.
+        `?item ${placeProp} ?loc . ?loc wdt:P625 ?coord .`
+      : `OPTIONAL { ?item ${placeProp} ?loc0 . ?loc0 wdt:P625 ?c0 . }
+  OPTIONAL { ?item ${placeFallbackProp} ?loc1 . ?loc1 wdt:P625 ?c1 . }
   BIND(COALESCE(?loc0, ?loc1) AS ?loc)
   BIND(COALESCE(?c0, ?c1) AS ?coord)
-  FILTER(BOUND(?coord))
+  FILTER(BOUND(?coord))`
+  }
   ?item wikibase:sitelinks ?sitelinks .
   FILTER(?sitelinks > ${cfg.minSitelinks})
   ?article schema:about ?item ; schema:isPartOf <https://en.wikipedia.org/> ; schema:name ?articleTitle .
@@ -407,11 +476,11 @@ function toEvent(binding, category, opts = {}) {
   const source = article ? "wikipedia" : "wikidata";
 
   const location = binding.locLabel?.value || "";
-  const summary = opts.summary
-    ? opts.summary(rawTitle, year, location)
-    : binding.desc?.value
-    ? binding.desc.value.charAt(0).toUpperCase() + binding.desc.value.slice(1)
-    : `${title} (${category}).`;
+  const desc = binding.desc?.value ? binding.desc.value.charAt(0).toUpperCase() + binding.desc.value.slice(1) : "";
+  // The raw Wikidata description is passed through to custom summary builders
+  // so they can keep the biographical detail ("Indian philosopher and founder
+  // of Buddhism") instead of throwing it away for a bare "X was born." line.
+  const summary = opts.summary ? opts.summary(rawTitle, year, location, desc) : desc || `${title} (${category}).`;
 
   return {
     year,
@@ -436,6 +505,7 @@ async function fetchCategory(cfg) {
   const subConfigs = [cfg, ...(cfg.extra || [])];
 
   const seen = new Map();
+  const failed = [];
   let totalRaw = 0;
   for (let i = 0; i < subConfigs.length; i++) {
     const sub =
@@ -443,8 +513,21 @@ async function fetchCategory(cfg) {
         ? { ...subConfigs[i], minSitelinks: Math.min(subConfigs[i].minSitelinks, MINSITELINKS_CAP) }
         : subConfigs[i];
     const query = sub.mode === "person" ? personQuery(sub) : eventQuery(sub);
-    const bindings = await runQuery(query);
-    console.log(`  sub-query ${i + 1}/${subConfigs.length} (${sub.mode}) -> ${bindings.length} raw rows`);
+    const tag = `sub-query ${i + 1}/${subConfigs.length} (${sub.label || sub.mode})`;
+    // A sub-query that exhausts its retries used to throw and take the whole
+    // category down with it, discarding every row already collected. Wikidata
+    // timeouts are common enough on the broad passes that that's not an
+    // acceptable failure mode: skip the pass, keep the rest, and report which
+    // ones were lost so the run can be topped up later.
+    let bindings;
+    try {
+      bindings = await runQuery(query);
+    } catch (err) {
+      console.error(`  ${tag} FAILED (${err.message}) -- skipping, keeping rows collected so far`);
+      failed.push(tag);
+      continue;
+    }
+    console.log(`  ${tag} -> ${bindings.length} raw rows`);
     totalRaw += bindings.length;
     // Pass the originating sub-config through as toEvent's opts, so
     // per-sub-query title suffixes/summaries (e.g. "founded" vs
@@ -465,6 +548,7 @@ async function fetchCategory(cfg) {
     .map(({ _id, sitelinks, ...rest }) => rest);
 
   console.log(`  -> ${events.length} events (raw rows: ${totalRaw})`);
+  if (failed.length) console.warn(`  NOTE: ${failed.length} sub-query(ies) failed: ${failed.join(", ")}`);
   return events;
 }
 

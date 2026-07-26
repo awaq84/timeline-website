@@ -4,7 +4,7 @@ const CATEGORY_COLORS = {
   "Major Events": "#ffd60a",
   "Wars & Conflicts": "#e5534b",
   "Politics & Government": "#4fb0ff",
-  "Historical Figures": "#f2c94c",
+  People: "#f2c94c",
   "Science & Technology": "#6fcf97",
   "Exploration & Discovery": "#bb86fc",
   "Religion & Belief Systems": "#f2994a",
@@ -20,7 +20,7 @@ const CATEGORY_ORDER = [
   "Major Events",
   "Wars & Conflicts",
   "Politics & Government",
-  "Historical Figures",
+  "People",
   "Science & Technology",
   "Exploration & Discovery",
   "Religion & Belief Systems",
@@ -31,6 +31,42 @@ const CATEGORY_ORDER = [
   "Sports & Entertainment",
   "Empires & Countries",
 ];
+
+// One glyph per category, drawn on top of the category-coloured dot so the
+// marker carries its meaning even for colour-blind users (several of the 13
+// palette colours are hard to tell apart otherwise).
+//
+// All paths are authored in a 24x24 box and stroked rather than filled --
+// stroked outlines stay legible when scaled down to ~11px, where fine filled
+// detail turns into mush. Keep any new glyph to a handful of bold strokes.
+const CATEGORY_ICONS = {
+  // Star
+  "Major Events": "M12 4l2.4 5.2 5.6.6-4.2 3.9 1.2 5.5L12 16.4 7 19.2l1.2-5.5L4 9.8l5.6-.6z",
+  // Crossed swords
+  "Wars & Conflicts": "M6 5l12 12M18 5L6 17M3 19l4-4M21 19l-4-4",
+  // Classical building with columns
+  "Politics & Government": "M3 21h18M12 3l8 4H4zM6 21V9M10 21V9M14 21V9M18 21V9",
+  // Head and shoulders
+  People: "M12 8.2a3.1 3.1 0 100-6.2 3.1 3.1 0 000 6.2zM4.8 21c0-4 3.2-7.2 7.2-7.2s7.2 3.2 7.2 7.2",
+  // Laboratory flask
+  "Science & Technology": "M9 3h6M10 3v6l-5 9a1.8 1.8 0 001.6 2.8h10.8A1.8 1.8 0 0019 18l-5-9V3",
+  // Compass needle
+  "Exploration & Discovery": "M12 2.5a9.5 9.5 0 100 19 9.5 9.5 0 000-19zM16.2 7.8l-2.6 6.4-6.4 2.6 2.6-6.4z",
+  // Domed place of worship
+  "Religion & Belief Systems": "M12 2v3M3 21h18M6 21V11a6 6 0 0112 0v10",
+  // Coin
+  "Economy & Trade": "M12 2.5a9.5 9.5 0 100 19 9.5 9.5 0 000-19zM12 6.5v11M14.8 9.6c0-1.4-1.2-2.1-2.8-2.1s-2.8.8-2.8 2.1 1.3 1.9 2.8 2.3 2.8 1 2.8 2.4-1.2 2.1-2.8 2.1-2.8-.7-2.8-2.1",
+  // Warning triangle
+  "Disasters & Pandemics": "M12 3l9.5 17H2.5zM12 9v5M12 17.4v.2",
+  // Raised flag
+  "Social Movements & Revolutions": "M5.5 21V3M5.5 3.5h11l-2.2 4.2 2.2 4.2h-11",
+  // Crane / building under construction
+  "Architecture & Engineering": "M4 21V7l8-4 8 4v14M9.5 21v-5.5h5V21M8.5 10.5h2M13.5 10.5h2",
+  // Trophy
+  "Sports & Entertainment": "M8 3.5h8V9a4 4 0 01-8 0zM5 4.5h3M16 4.5h3M12 13v4M9 21h6",
+  // Crown
+  "Empires & Countries": "M3 8l3.6 11h10.8L21 8l-5 4-4-7-4 7z",
+};
 
 const state = {
   year: 1969,
@@ -121,6 +157,34 @@ function getEventYears() {
   return [...new Set(getFilteredEvents().map((e) => e.year))].sort((a, b) => a - b);
 }
 
+// Builds a marker-lookalike swatch (coloured disc + category glyph) for use in
+// the filter list and the pinned event card.
+function categorySwatch(cat, size = 18) {
+  const svgNS = "http://www.w3.org/2000/svg";
+  const iconSize = size * 0.6875; // matches the map's 8:11 dot-to-glyph ratio
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("class", "chip-dot");
+  svg.setAttribute("width", size);
+  svg.setAttribute("height", size);
+  svg.setAttribute("viewBox", `${-size / 2} ${-size / 2} ${size} ${size}`);
+  svg.setAttribute("aria-hidden", "true");
+
+  const circle = document.createElementNS(svgNS, "circle");
+  circle.setAttribute("r", size / 2 - 0.75);
+  circle.setAttribute("fill", CATEGORY_COLORS[cat] || "#888");
+  svg.appendChild(circle);
+
+  if (CATEGORY_ICONS[cat]) {
+    const g = document.createElementNS(svgNS, "g");
+    g.setAttribute("transform", `translate(${-iconSize / 2},${-iconSize / 2}) scale(${iconSize / 24})`);
+    const p = document.createElementNS(svgNS, "path");
+    p.setAttribute("d", CATEGORY_ICONS[cat]);
+    g.appendChild(p);
+    svg.appendChild(g);
+  }
+  return svg;
+}
+
 function buildCategoryFilters() {
   categoryFiltersEl.innerHTML = "";
   CATEGORY_ORDER.forEach((cat) => {
@@ -140,23 +204,16 @@ function buildCategoryFilters() {
       renderAll();
     });
 
-    const swatch = document.createElement("span");
-    swatch.className = "chip-dot";
-    swatch.style.background = CATEGORY_COLORS[cat] || "#888";
+    // The swatch shows the same colour *and* glyph as the map marker, so the
+    // filter list doubles as the map legend -- 13 glyphs is more than anyone
+    // will memorise from the map alone.
+    const swatch = categorySwatch(cat);
 
     wrapper.appendChild(checkbox);
     wrapper.appendChild(swatch);
     wrapper.appendChild(document.createTextNode(cat));
     categoryFiltersEl.appendChild(wrapper);
   });
-}
-
-function shortLabel(title) {
-  const maxLen = 22;
-  if (title.length <= maxLen) return title;
-  const truncated = title.slice(0, maxLen);
-  const lastSpace = truncated.lastIndexOf(" ");
-  return (lastSpace > 8 ? truncated.slice(0, lastSpace) : truncated) + "…";
 }
 
 document.getElementById("selectAll").addEventListener("click", () => {
@@ -194,10 +251,13 @@ function renderEventsList(currentEvents) {
     const isWikidata = e.source === "wikidata";
     card.innerHTML = `
       <h3>${e.title}</h3>
-      <div class="event-meta">${e.category} &middot; ${e.location}</div>
+      <div class="event-meta"><span class="event-meta-swatch"></span>${e.category}${e.location ? ` &middot; ${e.location}` : ""}</div>
       <p class="event-summary">${e.summary}</p>
       <a href="${e.wiki}" target="_blank" rel="noopener noreferrer">${isWikidata ? "View source on Wikidata" : "Read more on Wikipedia"} &rarr;</a>
     `;
+    // Same glyph as the map marker and the filter legend, so a category is
+    // recognisable in all three places.
+    card.querySelector(".event-meta-swatch").appendChild(categorySwatch(e.category, 14));
     eventsListEl.appendChild(card);
   });
 }
@@ -214,6 +274,14 @@ function findNearestEventYear(year) {
 
 let projection, path, svg, zoomLayer, markerLayer, zoomBehavior;
 let currentZoomK = 1;
+// Dots are bigger than the old r=5 so a glyph fits legibly inside them.
+const MARKER_R = 8;
+const ICON_SIZE = 11;
+
+// Stable identity for an event. Title alone isn't unique (see renderMarkers).
+const eventKey = (d) => `${d.year}|${d.title}|${d.lat}|${d.lng}`;
+// Title of the marker currently spotlighted by Discover, if any.
+let spotlightKey = null;
 const MAP_WIDTH = 960;
 const MAP_HEIGHT = 500;
 
@@ -294,9 +362,17 @@ function scheduleLabelReflow() {
 
 function renderMarkers(currentEvents) {
   if (!markerLayer) return;
-  hideMapTooltip();
+  // The marker set is changing, so any pinned card may point at an event
+  // that's about to disappear -- always clear it, pinned or not. Same reasoning
+  // for the Discover spotlight; jumpToEvent() re-applies it after this render.
+  unpinMapTooltip();
+  clearSpotlight();
 
-  const groups = markerLayer.selectAll("g.event-marker").data(currentEvents, (d) => d.title);
+  // Keyed on more than the title: ~300 titles in the dataset are genuinely
+  // shared by two events in the same year (several Roman consuls share a name,
+  // and cities were besieged repeatedly). Keying on title alone silently
+  // collapsed those into a single marker, losing ~455 of them.
+  const groups = markerLayer.selectAll("g.event-marker").data(currentEvents, eventKey);
 
   groups.exit().remove();
 
@@ -315,25 +391,44 @@ function renderMarkers(currentEvents) {
   // actually pull overlapping markers apart instead of just magnifying them.
   const visual = entered.append("g").attr("class", "marker-visual").attr("transform", `scale(${1 / currentZoomK})`);
 
-  visual.append("circle").attr("class", "marker-halo").attr("r", 9);
-  visual.append("circle").attr("r", 5);
+  visual.append("circle").attr("class", "marker-halo").attr("r", 11);
+  visual.append("circle").attr("r", MARKER_R);
+  // The glyph is authored in a 24x24 box, so scale it down and re-centre it on
+  // the dot. Kept as a sibling of the dot (not a child) so the existing
+  // circle-based selectors and the spotlight's r animation keep working.
+  visual
+    .append("g")
+    .attr("class", "marker-icon")
+    .attr("transform", `translate(${-ICON_SIZE / 2},${-ICON_SIZE / 2}) scale(${ICON_SIZE / 24})`)
+    .append("path")
+    .attr("d", (d) => CATEGORY_ICONS[d.category] || "");
   visual
     .append("text")
     .attr("class", "marker-label")
-    .attr("x", 10)
+    .attr("x", MARKER_R + 5)
     .attr("y", 4)
-    .text((d) => shortLabel(d.title));
+    .text((d) => d.title);
 
   entered
     .on("mouseenter", (event, d) => showMapTooltip(event, d))
-    .on("mousemove", (event) => positionMapTooltip(event))
-    .on("mouseleave", hideMapTooltip);
+    .on("mousemove", (event) => {
+      if (!isTooltipPinned()) positionMapTooltip(event);
+    })
+    .on("mouseleave", hideMapTooltip)
+    .on("click", (event, d) => {
+      // Stop the click reaching the document-level dismiss handler below.
+      event.stopPropagation();
+      pinMapTooltip(event, d);
+    });
 
   const merged = entered.merge(groups).attr("transform", (d) => {
     const coords = projection([d.lng, d.lat]);
     return coords ? `translate(${coords[0]}, ${coords[1]})` : "translate(-100,-100)";
   });
 
+  // Markers of deselected categories stay visible but greyed; the actual grey
+  // is in CSS, which beats these presentation attributes.
+  merged.classed("inactive", (d) => !state.activeCategories.has(d.category));
   merged.select(".marker-visual circle:last-of-type").attr("fill", (d) => CATEGORY_COLORS[d.category] || "#4fb0ff");
   merged.select(".marker-visual .marker-halo").attr("stroke", (d) => CATEGORY_COLORS[d.category] || "#4fb0ff");
 
@@ -343,26 +438,33 @@ function renderMarkers(currentEvents) {
 // Tries a handful of positions around each dot (right, left, above, below) and
 // hides the label (keeping just the dot + hover tooltip) if none are free.
 const LABEL_OFFSETS = [
-  { dx: 10, dy: 4, anchor: "start" },
-  { dx: -10, dy: 4, anchor: "end" },
-  { dx: 10, dy: -10, anchor: "start" },
-  { dx: 10, dy: 18, anchor: "start" },
-  { dx: -10, dy: -10, anchor: "end" },
-  { dx: -10, dy: 18, anchor: "end" },
+  { dx: MARKER_R + 5, dy: 4, anchor: "start" },
+  { dx: -(MARKER_R + 5), dy: 4, anchor: "end" },
+  { dx: MARKER_R + 5, dy: -10, anchor: "start" },
+  { dx: MARKER_R + 5, dy: 18, anchor: "start" },
+  { dx: -(MARKER_R + 5), dy: -10, anchor: "end" },
+  { dx: -(MARKER_R + 5), dy: 18, anchor: "end" },
 ];
 
 function resolveLabelCollisions() {
   const groups = markerLayer.selectAll("g.event-marker").nodes();
 
-  // Seed with every dot's own footprint (tagged with its owning node) so
-  // labels route around neighboring markers, not just around each other's
+  // Seed with each *active* dot's own footprint (tagged with its owning node)
+  // so labels route around neighboring markers, not just around each other's
   // text. Each marker's own dot is excluded when checking its own label.
   // Marker positions are stored in pre-zoom map coordinates, but marker
   // *visuals* (dot + label) are counter-scaled to stay a constant pixel
   // size -- so to compare footprints in the same "pixel space" we scale
   // each marker's local position by the current zoom factor. Translation
   // from panning cancels out in the overlap comparison, so it's ignored.
-  const dotRadius = 8;
+  //
+  // Greyed-out dots are deliberately NOT obstacles. They're still drawn (as
+  // faint geographic context), but treating them as blockers meant narrowing
+  // the filter down to one category produced *zero* labels: at a busy year the
+  // few surviving markers sit inside a cluster of a couple hundred greyed dots,
+  // and every candidate offset collided with one. A label crossing a 45%-opacity
+  // grey dot is a far smaller cost than no label at all.
+  const dotRadius = MARKER_R + 2;
   const localXY = (g) => {
     const matrix = g.transform.baseVal.consolidate();
     return {
@@ -370,23 +472,39 @@ function resolveLabelCollisions() {
       y: (matrix ? matrix.matrix.f : 0) * currentZoomK,
     };
   };
-  const placedRects = groups.map((g) => {
-    const { x, y } = localXY(g);
-    return {
-      owner: g,
-      x1: x - dotRadius,
-      y1: y - dotRadius,
-      x2: x + dotRadius,
-      y2: y + dotRadius,
-    };
-  });
+  const placedRects = groups
+    .filter((g) => !g.classList.contains("inactive"))
+    .map((g) => {
+      const { x, y } = localXY(g);
+      return {
+        owner: g,
+        x1: x - dotRadius,
+        y1: y - dotRadius,
+        x2: x + dotRadius,
+        y2: y + dotRadius,
+      };
+    });
 
   const sorted = groups.slice().sort((a, b) => localXY(a).x - localXY(b).x);
+
+  // Labels are full event titles, some of which are very long, so a label
+  // anchored near an edge can easily run outside the map. The overlap test
+  // above works in a pan-independent space, so for the edge test we fall back
+  // to real screen rects, which account for zoom and pan automatically.
+  const svgRect = svg.node().getBoundingClientRect();
 
   sorted.forEach((g) => {
     const text = g.querySelector(".marker-label");
     if (!text) return;
     const { x: px, y: py } = localXY(g);
+
+    // Greyed-out (deselected) markers never get a label -- they're context, not
+    // content. They're also not obstacles for anyone else's label; see the
+    // placedRects seed above for why.
+    if (g.classList.contains("inactive")) {
+      text.style.display = "none";
+      return;
+    }
 
     text.style.display = "";
     let placed = false;
@@ -405,7 +523,13 @@ function resolveLabelCollisions() {
       const overlaps = placedRects.some(
         (r) => r.owner !== g && rect.x1 < r.x2 && rect.x2 > r.x1 && rect.y1 < r.y2 && rect.y2 > r.y1
       );
-      if (!overlaps) {
+      const screen = text.getBoundingClientRect();
+      const outOfBounds =
+        screen.left < svgRect.left ||
+        screen.right > svgRect.right ||
+        screen.top < svgRect.top ||
+        screen.bottom > svgRect.bottom;
+      if (!overlaps && !outOfBounds) {
         placedRects.push({ owner: g, ...rect });
         placed = true;
         break;
@@ -470,27 +594,117 @@ function applyTooltipImage(token, imgUrl, event) {
   positionMapTooltip(event);
 }
 
-function showMapTooltip(event, d) {
-  const token = ++tooltipHoverToken;
-  const dotColor = CATEGORY_COLORS[d.category] || "#4fb0ff";
-  mapTooltipEl.innerHTML = `
+// A pinned tooltip (set by clicking a marker) stays put and becomes
+// interactive, so the user can actually click through to the source link.
+// While pinned it takes precedence over hover, and is dismissed by the close
+// button, Escape, clicking outside it, or the marker set being re-rendered.
+let pinnedEventKey = null;
+
+function isTooltipPinned() {
+  return pinnedEventKey !== null;
+}
+
+function tooltipMarkup(d, pinned) {
+  const linkText = d.source === "wikidata" ? "View source on Wikidata" : "Read more on Wikipedia";
+  const active = state.activeCategories.has(d.category);
+  return `
     <div class="tooltip-image-wrap" id="tooltipImageWrap"></div>
+    ${pinned ? `<button class="tooltip-close" id="tooltipClose" aria-label="Close" title="Close">&times;</button>` : ""}
     <h4>${d.title}</h4>
     <div class="tooltip-meta">
-      <span class="tooltip-dot" style="background:${dotColor}"></span>
+      <span class="tooltip-swatch" id="tooltipSwatch"></span>
       <span>${formatYear(d.year)} &middot; ${d.category}${d.location ? ` &middot; ${d.location}` : ""}</span>
     </div>
     <p class="tooltip-summary">${d.summary}</p>
+    ${
+      pinned
+        ? `<a class="tooltip-link" href="${d.wiki}" target="_blank" rel="noopener noreferrer">${linkText} &rarr;</a>
+           <button class="tooltip-category-toggle" id="tooltipCategoryToggle">
+             ${active ? `Hide &ldquo;${d.category}&rdquo; on map` : `Show &ldquo;${d.category}&rdquo; again`}
+           </button>`
+        : `<p class="tooltip-hint">Click to keep open</p>`
+    }
   `;
+}
+
+// Where the pinned card is anchored. Kept so the card can be re-rendered in
+// place (e.g. after toggling its category) without needing a fresh mouse event.
+let pinnedAnchor = null;
+let pinnedEvent = null;
+
+function renderMapTooltip(anchor, d, pinned) {
+  const token = ++tooltipHoverToken;
+  mapTooltipEl.innerHTML = tooltipMarkup(d, pinned);
+  mapTooltipEl.classList.toggle("pinned", pinned);
   mapTooltipEl.classList.add("visible");
-  positionMapTooltip(event);
+  positionMapTooltip(anchor);
+
+  // Marker-matching swatch, built with the same helper as the filter list.
+  document.getElementById("tooltipSwatch")?.appendChild(categorySwatch(d.category, 14));
+
+  if (pinned) {
+    document.getElementById("tooltipClose")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      unpinMapTooltip();
+    });
+    document.getElementById("tooltipCategoryToggle")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleCategoryFromCard(d);
+    });
+  }
 
   if (tooltipImageCache.has(d.wiki)) {
-    applyTooltipImage(token, tooltipImageCache.get(d.wiki), event);
+    applyTooltipImage(token, tooltipImageCache.get(d.wiki), anchor);
   } else {
-    fetchTooltipImage(d).then((img) => applyTooltipImage(token, img, event));
+    fetchTooltipImage(d).then((img) => applyTooltipImage(token, img, anchor));
   }
 }
+
+// Toggles the pinned event's category and re-pins the same card in place.
+// renderAll() clears the pin (the marker set may have changed underneath it),
+// so the card has to be restored afterwards rather than left to survive.
+function toggleCategoryFromCard(d) {
+  if (state.activeCategories.has(d.category)) state.activeCategories.delete(d.category);
+  else state.activeCategories.add(d.category);
+
+  const anchor = pinnedAnchor;
+  buildCategoryFilters();
+  renderAll();
+  if (anchor) pinMapTooltip(anchor, d);
+}
+
+function showMapTooltip(anchor, d) {
+  if (isTooltipPinned()) return; // don't let hover clobber a pinned card
+  renderMapTooltip(anchor, d, false);
+}
+
+function pinMapTooltip(anchor, d) {
+  pinnedEventKey = eventKey(d);
+  // positionMapTooltip() only reads clientX/clientY, so a plain point works and
+  // survives the re-render that a category toggle triggers.
+  pinnedAnchor = { clientX: anchor.clientX, clientY: anchor.clientY };
+  pinnedEvent = d;
+  renderMapTooltip(pinnedAnchor, d, true);
+}
+
+function unpinMapTooltip() {
+  pinnedEventKey = null;
+  pinnedAnchor = null;
+  pinnedEvent = null;
+  mapTooltipEl.classList.remove("pinned", "visible");
+}
+
+document.addEventListener("click", (e) => {
+  if (!isTooltipPinned()) return;
+  if (mapTooltipEl.contains(e.target)) return; // clicks inside the card (e.g. the link) are fine
+  unpinMapTooltip();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  unpinMapTooltip();
+  clearSpotlight();
+});
 
 function positionMapTooltip(event) {
   const bounds = mapSectionEl.getBoundingClientRect();
@@ -513,14 +727,19 @@ function positionMapTooltip(event) {
 }
 
 function hideMapTooltip() {
+  if (isTooltipPinned()) return; // mouseleave shouldn't dismiss a pinned card
   mapTooltipEl.classList.remove("visible");
 }
 
 function renderAll() {
-  const currentEvents = getFilteredEvents().filter((e) => e.year === state.year);
+  // Deselecting a category no longer removes its markers -- they stay on the
+  // map greyed out and unlabelled, so you keep the geographic context of what
+  // you filtered out and can click one to switch it back on. The events list,
+  // by contrast, only shows what's selected.
+  const yearEvents = EVENTS.filter((e) => e.year === state.year);
   yearBadge.textContent = formatYear(state.year);
-  renderEventsList(currentEvents);
-  renderMarkers(currentEvents);
+  renderEventsList(yearEvents.filter((e) => state.activeCategories.has(e.category)));
+  renderMarkers(yearEvents);
 }
 
 // ---- Discover ----
@@ -580,22 +799,28 @@ function jumpToEvent(event) {
   renderAll();
 
   mapSectionEl?.scrollIntoView({ behavior: "smooth", block: "start" });
-  spotlightMarker(event.title);
+  spotlightMarker(event);
 }
 
-function spotlightMarker(title) {
+function spotlightMarker(target) {
   if (!markerLayer) return;
+  const key = eventKey(target);
+  spotlightKey = key;
   markerLayer
     .selectAll("g.event-marker")
-    .filter((d) => d.title === title)
+    .filter((d) => eventKey(d) === key)
     .each(function () {
       const g = d3.select(this);
       g.classed("spotlight", false);
       // Force reflow so re-adding the class restarts the CSS animation.
       void this.getBoundingClientRect();
       g.classed("spotlight", true);
-      setTimeout(() => g.classed("spotlight", false), 4400);
     });
+}
+
+function clearSpotlight() {
+  spotlightKey = null;
+  markerLayer?.selectAll("g.event-marker.spotlight").classed("spotlight", false);
 }
 
 // ---- Timeline controls ----
