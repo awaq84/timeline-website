@@ -22,6 +22,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { STATIC_PAGES } from "./static-pages.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -31,7 +32,7 @@ const CENTURY_DIR = path.join(ROOT, "century");
 const SITEMAP_PATH = path.join(ROOT, "sitemap.xml");
 
 const SITE = "https://timelinehistory.net";
-const CSS_VERSION = 2;
+const CSS_VERSION = 3;
 
 // Mirrors CATEGORY_COLORS / CATEGORY_ORDER in app.js. Duplicated rather than
 // imported because app.js is a browser script with no exports, and turning it
@@ -142,6 +143,12 @@ const listPhrase = (items) =>
 
 // ---- Shared chrome ----
 
+// The footer credits Wikidata under CC0, not Wikipedia under CC BY-SA as it used
+// to. Nothing on this site reproduces Wikipedia article text: fetch-events.mjs
+// takes labels and schema:description from the Wikidata item and uses the
+// Wikipedia URL only as a link target and a join key. Claiming CC BY-SA asserted
+// a licence over content we don't actually carry, and named a source we don't
+// actually quote. See scripts/static-pages.mjs.
 function layout({ title, description, canonical, jsonLd, body }) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -175,8 +182,14 @@ ${JSON.stringify(jsonLd, null, 2)}
 ${body}
 
 <footer class="page-footer">
-  <p>Event data from <a href="https://www.wikidata.org/" rel="noopener">Wikidata</a> and <a href="https://en.wikipedia.org/" rel="noopener">Wikipedia</a>, available under <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a>.</p>
-  <p><a href="/">Timeline History</a> &middot; an interactive world history map of 111,389 events from 3001 BC to 2026.</p>
+  <p>Event data from <a href="https://www.wikidata.org/" rel="noopener">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/" rel="noopener">CC0 1.0</a>.</p>
+  <nav class="footer-nav">
+    <a href="/">Interactive map</a>
+    <a href="/about/">About</a>
+    <a href="/attribution/">Sources &amp; attribution</a>
+    <a href="/privacy/">Privacy</a>
+  </nav>
+  <p class="footer-tagline"><a href="/">Timeline History</a> &middot; an interactive world history map of 111,389 events from 3001 BC to 2026.</p>
 </footer>
 
 </body>
@@ -571,8 +584,39 @@ async function main() {
   }
   console.log(`Wrote ${centuries.length} century pages`);
 
+  // Hand-written prose (about / attribution / privacy). Rendered here rather than
+  // by their own script so they share layout() and, more importantly, cannot fall
+  // out of the sitemap below -- a separate build step is one someone forgets.
+  for (const page of STATIC_PAGES) {
+    const canonical = `${SITE}/${page.slug}/`;
+    const html = layout({
+      title: `${page.title} | Timeline History`,
+      description: page.description,
+      canonical,
+      jsonLd: {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebPage",
+            name: page.title,
+            url: canonical,
+            description: page.description,
+            isPartOf: { "@type": "WebSite", name: "Timeline History", url: `${SITE}/` },
+          },
+          breadcrumb([{ name: "Timeline History", path: "/" }, { name: page.title, path: `/${page.slug}/` }]),
+        ],
+      },
+      body: `<main class="prose-page">\n${page.body}</main>`,
+    });
+    const dir = path.join(ROOT, page.slug);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, "index.html"), html);
+  }
+  console.log(`Wrote ${STATIC_PAGES.length} static pages`);
+
   const urls = [
     `${SITE}/`,
+    ...STATIC_PAGES.map((p) => `${SITE}/${p.slug}/`),
     ...centuries.map((c) => `${SITE}/century/${centurySlug(c)}/`),
     ...years.map((y) => `${SITE}/year/${yearSlug(y)}/`),
   ];

@@ -61,6 +61,44 @@ a:hover { text-decoration: underline; }
 
 .page-footer p { margin: 6px 0; }
 
+/* Wraps rather than scrolls on narrow screens: four links is enough to overflow
+   a phone at this font size, and a footer is the last place to hide a link. */
+.footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 12px 0;
+}
+
+.footer-tagline { margin-top: 12px; }
+
+/* ---- Prose pages (/about/, /attribution/, /privacy/) ---- */
+
+/* Narrower than the event lists. Those are scannable cards where a wide column
+   is fine; this is continuous text, where anything past ~70 characters costs the
+   reader the start of the next line. */
+.prose-page {
+  max-width: 680px;
+  padding-bottom: 40px;
+}
+
+.prose-page h2 {
+  margin: 36px 0 12px;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+}
+
+.prose-page p { margin: 0 0 14px; }
+
+.prose-page ul {
+  margin: 0 0 16px;
+  padding-left: 22px;
+}
+
+.prose-page li { margin-bottom: 8px; }
+
+.prose-page strong { color: var(--text); font-weight: 600; }
+
 main {
   max-width: 860px;
   margin: 0 auto;

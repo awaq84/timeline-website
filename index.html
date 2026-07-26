@@ -33,7 +33,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
 
@@ -167,6 +167,19 @@
     </nav>
   </section>
 </main>
+
+<!-- The app had no footer at all, so the home page -- the entry point for almost
+     every visitor -- credited nothing and linked to no policy. The generated
+     pages under /year/ and /century/ carry the equivalent from layout() in
+     scripts/build-year-pages.mjs; keep the two in step. -->
+<footer class="site-footer">
+  <p>Event data from <a href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">CC0 1.0</a>.</p>
+  <nav class="site-footer-nav">
+    <a href="/about/">About</a>
+    <a href="/attribution/">Sources &amp; attribution</a>
+    <a href="/privacy/">Privacy</a>
+  </nav>
+</footer>
 
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>

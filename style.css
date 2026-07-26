@@ -925,3 +925,37 @@ main {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Site footer ---- */
+
+/* Mirrors the footer that layout() in scripts/build-year-pages.mjs puts on the
+   generated pages. The app is a single scrolling column, so this sits after
+   <main> and is the last thing on the page rather than pinned. */
+.site-footer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px 56px;
+  border-top: 1px solid var(--panel-border, rgba(255, 255, 255, 0.09));
+  color: var(--muted, #86868b);
+  font-size: 13px;
+  text-align: center;
+}
+
+.site-footer p { margin: 0 0 12px; }
+
+/* This stylesheet has no global `a` rule -- each component styles its own -- so
+   without this the footer links inherit the browser's default underline and end
+   up the only underlined text on the page. */
+.site-footer a {
+  color: var(--accent, #2997ff);
+  text-decoration: none;
+}
+
+.site-footer a:hover { text-decoration: underline; }
+
+.site-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+}
