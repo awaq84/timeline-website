@@ -13,4 +13,4 @@ Allow: /data/discover.js
 Disallow: /data/
 Disallow: /scripts/
 
-Sitemap: https://awaq84.github.io/timeline-website/sitemap.xml
+Sitemap: https://timelinehistory.net/sitemap.xml
