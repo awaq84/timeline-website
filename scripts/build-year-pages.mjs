@@ -159,14 +159,22 @@ function layout({ title, description, canonical, jsonLd, body }) {
 <meta name="description" content="${esc(description)}">
 <link rel="canonical" href="${canonical}">
 <meta name="theme-color" content="#000000">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Timeline History">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${canonical}">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="${SITE}/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A world map on a black background, scattered with coloured dots marking historical events.">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
+<meta name="twitter:image" content="${SITE}/og-image.png">
 <script type="application/ld+json">
 ${JSON.stringify(jsonLd, null, 2)}
 </script>
