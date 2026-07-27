@@ -920,9 +920,252 @@ main {
   transition: opacity 140ms ease-in;
 }
 
+/* ---- Quiz ---- */
+
+/* Same panel treatment as .eras-section. The quiz is a sibling of the map, not
+   a separate destination, so it should read as another card in the column
+   rather than something bolted on. */
+.quiz-section {
+  margin-top: 20px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 24px;
+  padding: 26px 28px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.quiz-section h2 {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.quiz-difficulty {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 22px;
+}
+
+.quiz-difficulty-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.quiz-difficulty-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quiz-difficulty-btns button {
+  padding: 6px 14px;
+  border: 1px solid var(--panel-border);
+  background: transparent;
+  border-radius: 999px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.quiz-difficulty-btns button:hover {
+  border-color: var(--panel-border-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.quiz-difficulty-btns button.is-active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+  font-weight: 600;
+}
+
+/* The hint takes the full row so changing difficulty doesn't reflow the pills. */
+.quiz-difficulty-hint {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* The period is the question. Without it "which two happened in the same
+   period" has no single answer, so it gets the same weight as the year badge on
+   the map rather than being tucked into the body text. */
+.quiz-period {
+  margin: 0 0 16px;
+  font-size: clamp(1.1rem, 2.4vw, 1.45rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.quiz-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.quiz-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.quiz-option:hover:not(:disabled) {
+  border-color: var(--panel-border-strong);
+  background: rgba(255, 255, 255, 0.07);
+  transform: translateY(-1px);
+}
+
+.quiz-option.is-picked {
+  border-color: var(--accent);
+  background: rgba(41, 151, 255, 0.14);
+}
+
+/* Graded state. The colours carry meaning, so each also gets a tick or a cross
+   -- red and green alone are the one pairing a large minority of people cannot
+   separate. */
+.quiz-option.is-correct {
+  border-color: #6fcf97;
+  background: rgba(111, 207, 151, 0.14);
+}
+
+.quiz-option.is-wrong {
+  border-color: #e5534b;
+  background: rgba(229, 83, 75, 0.14);
+}
+
+/* The mark is a flex item rather than an absolutely-positioned corner badge.
+   Positioned, it sat on top of the year that appears in the same corner once
+   the answer is revealed, printing "86 BC✓" over itself; in the flow the two
+   simply sit side by side and the row cannot overlap whatever its width. */
+.quiz-option.is-correct::after,
+.quiz-option.is-wrong::after {
+  margin-top: 1px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.quiz-option.is-correct::after {
+  content: "✓";
+  color: #6fcf97;
+}
+
+.quiz-option.is-wrong::after {
+  content: "✕";
+  color: #e5534b;
+}
+
+.quiz-option:disabled {
+  cursor: default;
+}
+
+/* Category colour, matching the marker on the map above. */
+.quiz-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.quiz-option-text {
+  flex: 1;
+}
+
+.quiz-option-year {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-left: 4px;
+  margin-top: 1px;
+}
+
+.quiz-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 18px;
+}
+
+.quiz-primary {
+  height: 40px;
+  padding: 0 22px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.quiz-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.quiz-feedback {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.quiz-feedback.is-right { color: #6fcf97; font-weight: 600; }
+.quiz-feedback.is-wrong { color: #e5534b; }
+
+/* Pushed to the far end so the score doesn't shift the feedback text around as
+   the numbers grow. */
+.quiz-score {
+  margin: 0 0 0 auto;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.quiz-loading {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 @media (max-width: 800px) {
   .content-section {
     grid-template-columns: 1fr;
+  }
+
+  /* Four options side by side become unreadable slivers well before the map
+     breaks, so they stack a step earlier than everything else. */
+  .quiz-options {
+    grid-template-columns: 1fr;
+  }
+
+  .quiz-score {
+    margin-left: 0;
   }
 }
 
