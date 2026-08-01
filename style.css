@@ -974,6 +974,27 @@ main {
   height: 18px;
 }
 
+/* On a phone the teaser sits between the title and the map, and at full height
+   it pushed the map itself off the first screen -- on a site whose entire point
+   is the map. The heading and the button still say what it is, so the
+   explanatory line goes and the card shrinks to something that can be scrolled
+   past in one gesture. */
+@media (max-width: 640px) {
+  .quiz-teaser {
+    padding: 20px 22px;
+    gap: 14px;
+  }
+
+  .quiz-teaser .hint {
+    display: none;
+  }
+
+  .quiz-teaser-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 @media (max-width: 800px) {
   .content-section {
     grid-template-columns: 1fr;

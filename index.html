@@ -57,6 +57,23 @@
 </header>
 
 <main>
+  <!-- Teaser only. The quiz itself lives at /quiz/, which loads its own 251KB
+       pool plus quiz-app.js; running it here as well would mean two copies of
+       the same content competing in search and a heavier home page for the
+       majority who came for the map. This card is static markup -- nothing in
+       app.js backs it. -->
+  <section class="quiz-teaser">
+    <div class="quiz-teaser-text">
+      <p class="eyebrow">Test your knowledge</p>
+      <h2>Ten levels. How far do you get?</h2>
+      <p class="hint">Four events, one period &mdash; pick the two that belong to it. Level&nbsp;1 is the moon landing and the founding of Rome. Level&nbsp;10 is not.</p>
+    </div>
+    <a class="icon-btn-accent quiz-teaser-btn" href="/quiz/">
+      Play the quiz
+      <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </section>
+
   <section class="discovery-section">
     <p class="eyebrow">Discover</p>
     <div class="discovery-row">
@@ -129,23 +146,6 @@
       </div>
       <div id="eventsList" class="events-list"></div>
     </div>
-  </section>
-
-  <!-- Teaser only. The quiz itself lives at /quiz/, which loads its own 251KB
-       pool plus quiz-app.js; running it here as well would mean two copies of
-       the same content competing in search and a heavier home page for the
-       majority who came for the map. This card is static markup -- nothing in
-       app.js backs it. -->
-  <section class="quiz-teaser">
-    <div class="quiz-teaser-text">
-      <p class="eyebrow">Test your knowledge</p>
-      <h2>Ten levels. How far do you get?</h2>
-      <p class="hint">Four events, one period &mdash; pick the two that belong to it. Level&nbsp;1 is the moon landing and the founding of Rome. Level&nbsp;10 is not.</p>
-    </div>
-    <a class="icon-btn-accent quiz-teaser-btn" href="/quiz/">
-      Play the quiz
-      <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </a>
   </section>
 
   <!-- Static entry points into the generated pages under /century/ and /year/.
