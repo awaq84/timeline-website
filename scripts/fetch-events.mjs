@@ -13,11 +13,13 @@
 // retried with backoff on 429/timeout responses.
 
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ENDPOINT = "https://query.wikidata.org/sparql";
+const RULER_POSITIONS_PATH = path.join(__dirname, "..", "data", ".cache", "ruler-positions.json");
 const USER_AGENT = "TimelineHistoryBuildScript/1.0 (personal educational project)";
 // These can be overridden via env vars to run a scoped pass over a narrower
 // year window (e.g. to backfill a historically underrepresented era) without
@@ -49,6 +51,110 @@ const PERSON_POSITION_QIDS = [
   "wd:Q48352",
   "wd:Q2285706",
 ];
+
+// Ruler titles beyond the eleven listed above, read from a cache built by a one
+// -off Wikidata query for everything that is transitively a subclass of monarch
+// (?p wdt:P279* wd:Q116) and has more than eight dated holders. 228 of them.
+//
+// The list above reaches eleven of roughly 1,867 such titles, and which eleven
+// is the problem: it has "Roman emperor" and "pharaoh" but not "Mughal emperor",
+// "Emperor of China", "Emperor of Japan", "khan", "Emperor of Ethiopia", "King
+// of Kush" or "Abbasid caliph". So Akbar, Aurangzeb, Jahangir, Humayun and Shah
+// Jahan were absent from the dataset entirely -- not filtered on notability,
+// never queried. Akbar has 166 sitelinks, twice the quiz's own floor for people.
+//
+// The subclass traversal is not done inline because combining wdt:P279* with the
+// person query reliably 502s on Wikidata's public endpoint. Resolving it once
+// and caching the QIDs keeps the per-run queries as cheap as a flat VALUES list
+// while removing the editorial judgement about whose rulers count.
+//
+// Regenerate the cache with the query documented in data/.cache/README-rulers.md
+function loadRulerPositions() {
+  try {
+    const rows = JSON.parse(fsSync.readFileSync(RULER_POSITIONS_PATH, "utf8"));
+    return rows.sort((a, b) => b.n - a.n).map((r) => `wd:${r.qid}`);
+  } catch {
+    console.warn(`No ${RULER_POSITIONS_PATH} -- ruler titles beyond the built-in list will be skipped.`);
+    return [];
+  }
+}
+
+// Batched rather than one VALUES clause for the reason given on
+// PERSON_OCCUPATIONS: every query ends in ORDER BY DESC(?sitelinks), so cost
+// scales with how many items match, not with LIMIT. The commonest titles get a
+// pass to themselves; the long tail is grouped.
+function rulerPositionBatches(qids) {
+  const solo = qids.slice(0, 12).map((q) => [q]);
+  const rest = qids.slice(12);
+  const grouped = [];
+  for (let i = 0; i < rest.length; i += 25) grouped.push(rest.slice(i, i + 25));
+  return [...solo, ...grouped];
+}
+
+// --- Regional partitioning ---
+//
+// Every query in this file ends in ORDER BY DESC(?sitelinks) and is then capped,
+// twice: RAW_LIMIT per sub-query and TARGET_PER_CATEGORY on the result. That is a
+// global fame ranking with a guillotine on the end, and it is why the dataset is
+// 55.9% Europe and 3.5% Indian subcontinent.
+//
+// The giveaway is that the events already held are equally obscure everywhere --
+// median sitelink count is 9 in Europe, 9 in Africa, 9 in China, 8 in India, 7 in
+// South America. So the cut is not taking better events from Europe. It is taking
+// FAR MORE of them, because the top 900 "castles" worldwide are mostly European
+// and every one of the fifty-odd sub-queries repeats that bias.
+//
+// Raising the caps cannot fix a ratio: a bigger slice of the same ranking is
+// still mostly Europe. What fixes it is not making regions compete -- each gets
+// its own pass and its own row budget, so a Chinese temple is ranked against
+// other Chinese temples rather than against French chateaux.
+//
+// Regions are matched on the item's country (P17), or on the country's continent
+// (P30) where a continent is the right grain. Country lists are used where a
+// continent is too coarse: "Asia" would put Japan and Yemen in one bucket, which
+// is the same mistake at a larger scale.
+const REGIONS = [
+  {
+    key: "south-asia",
+    // India, Pakistan, Bangladesh, Sri Lanka, Nepal, Bhutan, Afghanistan, Maldives
+    countries: ["wd:Q668", "wd:Q843", "wd:Q902", "wd:Q854", "wd:Q837", "wd:Q917", "wd:Q889", "wd:Q826"],
+  },
+  {
+    key: "east-asia",
+    // China, Japan, South Korea, North Korea, Mongolia, Taiwan
+    countries: ["wd:Q148", "wd:Q17", "wd:Q884", "wd:Q423", "wd:Q711", "wd:Q865"],
+  },
+  {
+    key: "southeast-asia",
+    // Vietnam, Thailand, Indonesia, Philippines, Malaysia, Myanmar, Cambodia, Laos
+    countries: ["wd:Q881", "wd:Q869", "wd:Q252", "wd:Q928", "wd:Q833", "wd:Q836", "wd:Q424", "wd:Q819"],
+  },
+  { key: "africa", continent: "wd:Q15" },
+  { key: "south-america", continent: "wd:Q18" },
+];
+
+// A region pass binds ?item to a country, so it is a strictly narrower query than
+// the unpartitioned one. It can afford a lower notability floor: the whole point
+// is to reach past the globally-famous into what is locally significant, and a
+// floor tuned to survive a worldwide sort is far too high once the field is a
+// single region.
+const REGION_MIN_SITELINKS = Number(process.env.FETCH_REGION_MINSITELINKS ?? 2);
+
+// Region passes are opt-in. They roughly double the query count, and an ordinary
+// rebuild should not silently become a several-hundred-query job.
+//   FETCH_REGIONS=1 node scripts/fetch-events.mjs "Wars & Conflicts"
+const REGION_PASSES = process.env.FETCH_REGIONS === "1";
+
+// SPARQL fragment restricting ?item to a region, via whatever variable holds the
+// place. Events join through the item's own country; people through the country
+// of the place they were born or died in.
+function regionClause(region, subject) {
+  if (!region) return "";
+  const v = `?rcountry_${region.key.replace(/-/g, "_")}`;
+  return region.continent
+    ? `${subject} wdt:P17 ${v} . ${v} wdt:P30 ${region.continent} .`
+    : `${subject} wdt:P17 ${v} . VALUES ${v} { ${region.countries.join(" ")} }`;
+}
 
 // Occupations (P106), each with its own notability floor. The floor is not a
 // quality judgement -- it's what keeps the query inside Wikidata's 60s budget.
@@ -148,6 +254,34 @@ const CATEGORIES = [
         titleSuffix: "born",
         summary: PERSON_SUMMARY.born,
       })),
+      // The 228 cached ruler titles, births and deaths alike. Deaths are fetched
+      // here rather than left to migrate-people.mjs, because that script relabels
+      // rows an earlier run already collected -- and these rows were never
+      // collected by any run, which is the whole point.
+      ...rulerPositionBatches(loadRulerPositions()).flatMap((batch, i) => [
+        {
+          mode: "person",
+          personDate: "birth",
+          requirePlace: true,
+          posProps: ["wdt:P39"],
+          posValues: batch,
+          minSitelinks: 12,
+          label: `rulers ${i + 1} (born)`,
+          titleSuffix: "born",
+          summary: PERSON_SUMMARY.born,
+        },
+        {
+          mode: "person",
+          personDate: "death",
+          requirePlace: true,
+          posProps: ["wdt:P39"],
+          posValues: batch,
+          minSitelinks: 12,
+          label: `rulers ${i + 1} (died)`,
+          titleSuffix: "died",
+          summary: PERSON_SUMMARY.died,
+        },
+      ]),
       // NOTE: the death half of this category is not fetched here. The 5,081
       // events previously filed under "Historical Figures" were already
       // death events (P570), so scripts/migrate-people.mjs relabels those in
@@ -393,11 +527,56 @@ const CATEGORIES = [
     ],
   },
   {
+    // The original six types were bridge, church building, monastery, palace,
+    // tower and stadium -- which is to say, European architecture plus stadiums.
+    // Nothing else could be collected, so the Taj Mahal was absent from the
+    // dataset while "Taj Mahal Palace", a hotel, was present. Its Wikidata item
+    // has an inception date and coordinates and always did; there was simply no
+    // type here it could match, because it is a mausoleum.
+    //
+    // Same for Qutb Minar (minaret), Khajuraho (Hindu temple), and Harappa and
+    // Mohenjo-daro (archaeological sites). The about page blames Wikidata's
+    // western skew for gaps like these, and for these it was not Wikidata's.
+    //
+    // Split into passes for the same reason PERSON_OCCUPATIONS is: each query
+    // ends in ORDER BY DESC(?sitelinks), which forces a full sort of everything
+    // matched, so cost scales with how common the type is rather than with
+    // LIMIT. It also gives each pass its own RAW_LIMIT instead of making a
+    // world's worth of temples compete with churches for one 900-row budget.
     name: "Architecture & Engineering",
     mode: "event",
     types: ["wd:Q12280", "wd:Q16970", "wd:Q44613", "wd:Q16560", "wd:Q12518", "wd:Q483110"],
     dateProps: ["wdt:P571", "wdt:P585"],
     minSitelinks: 3,
+    extra: [
+      ...[
+        ["wd:Q32815", "mosque"],
+        ["wd:Q842402", "Hindu temple"],
+        ["wd:Q5393308", "Buddhist temple"],
+        ["wd:Q44539", "temple"],
+        ["wd:Q162875", "mausoleum"],
+        ["wd:Q381885", "tomb"],
+        ["wd:Q180987", "stupa"],
+        ["wd:Q199451", "pagoda"],
+        ["wd:Q697295", "shrine"],
+        ["wd:Q845945", "Shinto shrine"],
+        ["wd:Q34627", "synagogue"],
+        ["wd:Q48356", "minaret"],
+        ["wd:Q132834", "madrasa"],
+        ["wd:Q186347", "caravanserai"],
+        ["wd:Q1473950", "stepwell"],
+        ["wd:Q1785071", "fort"],
+        ["wd:Q57821", "fortification"],
+        ["wd:Q23413", "castle"],
+        ["wd:Q839954", "archaeological site"],
+      ].map(([qid, label]) => ({
+        mode: "event",
+        types: [qid],
+        label,
+        dateProps: ["wdt:P571", "wdt:P585"],
+        minSitelinks: 3,
+      })),
+    ],
   },
   {
     // Deliberately excludes "sports season" (Q27020041): it matches 13k+ modern
@@ -521,6 +700,9 @@ function eventQuery(cfg) {
   // with coordinates) to be selective on its own, so the date property carries
   // the whole filter.
   const typeClause = cfg.types ? `VALUES ?type { ${cfg.types.join(" ")} }\n  ?item wdt:P31 ?type .` : "";
+  // Restricts the whole query to one region when cfg.region is set. Placed with
+  // the type clause so it binds ?item early and the planner can use it.
+  const regionBlock = regionClause(cfg.region, "?item");
   // Normally P31 anchors the query and every date property is OPTIONAL, so an
   // item matching any one of them qualifies. With no type clause there'd be
   // nothing binding ?item outside an OPTIONAL, which is not a selective query at
@@ -548,6 +730,7 @@ function eventQuery(cfg) {
   return `
 SELECT DISTINCT ?item ?itemLabel ?date ?precision ?coord ?locLabel ?sitelinks ?article ?desc WHERE {
   ${typeClause}
+  ${regionBlock}
   ${dateBindings}
   BIND(COALESCE(${coalesce}) AS ?date)
   FILTER(BOUND(?date))
@@ -580,10 +763,14 @@ function personQuery(cfg) {
   const dateProp = birth ? "wdt:P569" : "wdt:P570";
   const placeProp = birth ? "wdt:P19" : "wdt:P20";
   const placeFallbackProp = birth ? "wdt:P20" : "wdt:P19";
+  // People are placed by where they were born or died, so a region pass joins
+  // through that place's country rather than through the person.
+  const regionBlock = cfg.region ? `?item ${placeProp} ?rloc . ${regionClause(cfg.region, "?rloc")}` : "";
   return `
 SELECT DISTINCT ?item ?itemLabel ?date ?precision ?coord ?locLabel ?sitelinks ?article ?desc WHERE {
   VALUES ?pos { ${posValues} }
   ?item ${posProp} ?pos .
+  ${regionBlock}
   ?item ${dateProp} ?date .
   FILTER(YEAR(?date) >= ${MIN_YEAR} && YEAR(?date) <= ${MAX_YEAR})
   ${precisionBlocks([dateProp])}
@@ -751,7 +938,27 @@ function toEvent(binding, category, opts = {}) {
 
 async function fetchCategory(cfg) {
   console.log(`Fetching "${cfg.name}"...`);
-  const subConfigs = [cfg, ...(cfg.extra || [])];
+  // The unpartitioned passes, then one pass per region on top. The
+  // unpartitioned ones are kept rather than replaced: they are what surfaces the
+  // genuinely worldwide-famous events, and dropping them to chase balance would
+  // trade one distortion for another.
+  //
+  // Region passes reuse the base config's types and date properties -- the same
+  // question, asked once per region -- with their own notability floor, because a
+  // floor calibrated to survive a global sort is far too high inside one region.
+  // Only the top-level config is expanded, not cfg.extra: the extras are already
+  // fine-grained (one occupation, one building type each), and crossing them with
+  // five regions would multiply a fifty-query run into several hundred.
+  const regionPasses = REGION_PASSES
+    ? REGIONS.map((region) => ({
+        ...cfg,
+        extra: undefined,
+        region,
+        minSitelinks: Math.min(cfg.minSitelinks ?? REGION_MIN_SITELINKS, REGION_MIN_SITELINKS),
+        label: `${cfg.label ? `${cfg.label} ` : ""}${region.key}`,
+      }))
+    : [];
+  const subConfigs = [cfg, ...(cfg.extra || []), ...regionPasses];
 
   const seen = new Map();
   const failed = [];
