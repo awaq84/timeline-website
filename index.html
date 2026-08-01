@@ -46,7 +46,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
 
@@ -106,6 +106,12 @@
       </button>
     </div>
     <p class="map-zoom-hint" id="mapZoomHint">Scroll, pinch, or use the controls to zoom into crowded areas</p>
+    <!-- Borders on this map are present-day, and this note is the only thing on
+         it that says so. The hatched areas come from Natural Earth's
+         disputed-areas dataset; hovering one gives that dataset's own wording
+         ("Admin. by India; Claimed by Pakistan") rather than any wording of
+         ours. -->
+    <p class="map-disputed-note">Hatched areas are territories whose sovereignty is disputed. Borders shown are present-day, not historical. <a href="/attribution/">Sources</a></p>
   </section>
 
   <section class="timeline-section">
@@ -219,6 +225,6 @@
      "Data access" section there. Loading the full 28MB dataset up front cost
      roughly six seconds before the first marker appeared. -->
 <script src="data/discover.js?v=3"></script>
-<script src="app.js?v=29"></script>
+<script src="app.js?v=32"></script>
 </body>
 </html>

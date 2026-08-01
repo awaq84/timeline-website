@@ -69,6 +69,7 @@ export const STATIC_PAGES = [
   <h2>Map geometry — Natural Earth</h2>
   <p>Country outlines come from <a href="https://github.com/topojson/world-atlas" rel="noopener">world-atlas</a>, a TopoJSON build of <a href="https://www.naturalearthdata.com/" rel="noopener">Natural Earth</a>. Natural Earth is in the <a href="https://www.naturalearthdata.com/about/terms-of-use/" rel="noopener">public domain</a>.</p>
   <p>Note that the map shows present-day borders at every point on the timeline. Drawing historically accurate borders for 5,000 years is a far harder problem than this site solves, so the outlines are a backdrop for placing events, not a claim about who governed what.</p>
+  <p>Territories whose sovereignty is contested are hatched, using Natural Earth's <a href="https://github.com/nvkelso/natural-earth-vector" rel="noopener">disputed areas</a> dataset rather than the country outlines &mdash; the country file folds Kashmir, Crimea and the Golan Heights into whichever neighbour it picked, and marking only the handful it happens to separate out would be an editorial position rather than a description. Hovering a hatched area gives Natural Earth's own wording, such as &ldquo;Admin. by India; Claimed by Pakistan&rdquo;. Who administers a territory and who claims it are both checkable facts; nothing there is worded by us.</p>
 
   <h2>Software</h2>
   <ul>

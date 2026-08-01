@@ -414,8 +414,27 @@ function initMap() {
   projection = d3.geoNaturalEarth1().scale(160).translate([MAP_WIDTH / 2, MAP_HEIGHT / 2]);
   path = d3.geoPath(projection);
 
+  // A hatch rather than a flat fill. Thirteen category colours are already in
+  // play on this map, and a fourteenth solid colour would read as another
+  // category; diagonal stripes read as "provisional" in every atlas ever
+  // printed. patternUnits is userSpaceOnUse so the stripes stay put against the
+  // map rather than shifting inside each shape.
+  const defs = svg.append("defs");
+  const hatch = defs
+    .append("pattern")
+    .attr("id", "disputedHatch")
+    .attr("patternUnits", "userSpaceOnUse")
+    .attr("width", 6)
+    .attr("height", 6)
+    .attr("patternTransform", "rotate(45)");
+  hatch.append("rect").attr("width", 6).attr("height", 6).attr("fill", "rgba(255, 159, 10, 0.10)");
+  hatch.append("line").attr("x1", 0).attr("y1", 0).attr("x2", 0).attr("y2", 6).attr("stroke", "rgba(255, 159, 10, 0.55)").attr("stroke-width", 1.6);
+
   zoomLayer = svg.append("g").attr("class", "zoom-layer");
   const landLayer = zoomLayer.append("g").attr("class", "land-layer");
+  // Between the land and the markers: over the country fills so the hatch is
+  // visible, under the markers so it never sits on top of a dot.
+  disputedLayer = zoomLayer.append("g").attr("class", "disputed-layer");
   markerLayer = zoomLayer.append("g").attr("class", "marker-layer");
 
   zoomBehavior = d3
@@ -469,8 +488,44 @@ function initMap() {
       .join("path")
       .attr("class", "land")
       .attr("d", path);
+    drawDisputedAreas();
     renderAll();
   });
+}
+
+// Territories whose sovereignty is contested, drawn over the country shapes in a
+// hatch so they read as "this is not settled" rather than as another country.
+//
+// The base atlas draws one set of present-day borders and says nothing about
+// which of them anyone disagrees with. It happens to carry Taiwan, Palestine,
+// Kosovo, W. Sahara, N. Cyprus and Somaliland as separate shapes, but not
+// Kashmir, Crimea, the Golan Heights or Nagorno-Karabakh -- those are folded
+// into a neighbour. Marking only the ones the atlas happened to split out would
+// have looked like an editorial line rather than an omission, which is worse
+// than marking none, so this layer comes from Natural Earth's dedicated
+// disputed-areas dataset instead and covers all 79.
+//
+// The label is Natural Earth's own wording -- "Admin. by India; Claimed by
+// Pakistan" -- rather than anything written here. Who administers a territory
+// and who claims it are both checkable facts, and stating both is the only
+// position this site is entitled to take.
+function drawDisputedAreas() {
+  if (!disputedLayer) return;
+  d3.json("data/disputed-areas.json?v=3")
+    .then((fc) => {
+      disputedLayer
+        .selectAll("path")
+        .data(fc.features)
+        .join("path")
+        .attr("class", "disputed-area")
+        .attr("d", path)
+        .append("title")
+        .text((d) => (d.properties.d ? `${d.properties.n} — ${d.properties.d}` : d.properties.n));
+    })
+    .catch(() => {
+      // A missing overlay is not worth breaking the map for; the countries are
+      // already drawn and every marker still works without it.
+    });
 }
 
 function dismissZoomHint() {

@@ -1047,3 +1047,47 @@ main {
   justify-content: center;
   gap: 8px 18px;
 }
+
+/* ---- Disputed territories ---- */
+
+/* Sovereignty that is contested, hatched over the country fill. Drawn from
+   Natural Earth's disputed-areas dataset (data/disputed-areas.json) rather than
+   from the country atlas, which folds Kashmir, Crimea and the Golan Heights
+   into whichever neighbour it picked. pointer-events stays on so the native
+   <title> tooltip works, but the shapes sit under the marker layer so they can
+   never take a click from a dot. */
+.disputed-area {
+  fill: url(#disputedHatch);
+  stroke: rgba(255, 159, 10, 0.5);
+  stroke-width: 0.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.disputed-area:hover {
+  stroke: rgba(255, 159, 10, 0.9);
+  stroke-width: 0.9;
+}
+
+/* Sits with the zoom hint under the map. */
+.map-disputed-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.map-disputed-note::before {
+  content: "";
+  width: 16px;
+  height: 10px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 159, 10, 0.5);
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 159, 10, 0.55) 0 1.6px,
+    rgba(255, 159, 10, 0.1) 1.6px 6px
+  );
+}
