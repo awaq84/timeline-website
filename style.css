@@ -356,6 +356,12 @@ main {
    the text read as crowded and overlapping rather than outlined. Keep this at
    roughly a fifth of the font size. */
 .marker-label {
+  /* A label belongs to one marker but is drawn across its neighbours, and with
+     a 2.4px stroke it is a wide target. Left clickable, it stole the click from
+     any dot underneath it -- which is exactly the dots that co-located events
+     are fanned out into. The dot is the thing you aim at; the text is decoration
+     over other markers. */
+  pointer-events: none;
   fill: var(--text);
   font-size: 12px;
   font-weight: 600;

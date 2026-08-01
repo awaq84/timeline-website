@@ -437,6 +437,9 @@ function initMap() {
       currentZoomK = event.transform.k;
       zoomLayer.attr("transform", event.transform);
       markerLayer.selectAll(".marker-visual").attr("transform", `scale(${1 / currentZoomK})`);
+      // Fan offsets are screen-space, so they are divided by the zoom factor and
+      // have to be recomputed here or co-located markers drift apart as you zoom.
+      if (markerFanOffsets.size) markerLayer.selectAll("g.event-marker").attr("transform", markerTransform);
       scheduleLabelReflow();
     })
     .on("end", () => {
@@ -480,8 +483,96 @@ function scheduleLabelReflow() {
   labelReflowTimer = setTimeout(resolveLabelCollisions, 120);
 }
 
+// Events sharing an exact coordinate, fanned into rings so each one can be
+// clicked.
+//
+// Nearly half the dataset sits on a coordinate shared with another event --
+// 1,446 events are pinned to "London", 1,008 to "Rome" -- because a battle is
+// placed at its named location's centre, not where it was fought. In a single
+// year that still stacks up: 5,267 year-and-place combinations hold more than
+// one event, the worst being 46 markers on Rome in 101 BC. Stacked exactly, only
+// the topmost is hoverable and the rest are unreachable on the map entirely.
+//
+// The offset is in screen pixels, applied to the outer group divided by the zoom
+// factor so the fan stays the same size on screen at every zoom level. That is
+// deliberate rather than lazy: these markers are at the *same* coordinate, so
+// unlike genuinely-nearby markers no amount of zooming can ever separate them,
+// and a fan that grew with zoom would just fly apart.
+//
+// Ring k holds 6k slots at radius k*FAN_STEP, first event in the centre, which
+// puts 46 markers inside four rings.
+const FAN_STEP = 18;
+
+function fanOffsets(events) {
+  const byPoint = new Map();
+  for (const d of events) {
+    // Rounded, not exact. The same city reaches us at more than one precision --
+    // Rome is both 41.893055555,12.482777777 and 41.89,12.48 -- and grouping on
+    // the exact pair built two separate fans that then sat on top of each other.
+    // 0.01 degrees is about a kilometre, which is under a third of a pixel even
+    // at maximum zoom, so nothing visually distinct is ever merged by this.
+    const k = `${Math.round(d.lat * 100)},${Math.round(d.lng * 100)}`;
+    let arr = byPoint.get(k);
+    if (!arr) byPoint.set(k, (arr = []));
+    arr.push(d);
+  }
+
+  const offsets = new Map();
+  for (const arr of byPoint.values()) {
+    if (arr.length === 1) continue;
+    // Every member fans around one shared centre rather than around its own
+    // coordinate. Members of a group are within 0.01 degrees of each other but
+    // not identical, and offsetting each from its own point left the ring
+    // spacing slightly uneven -- enough for neighbouring dots to cover each
+    // other's centre, which is the exact problem being solved here.
+    const base = { lat: arr[0].lat, lng: arr[0].lng };
+    // Sorted so the arrangement is stable: the same year re-rendered after a
+    // filter change must not shuffle the markers around under the cursor.
+    arr.sort((a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : 0));
+    let i = 0;
+    for (const d of arr) {
+      if (i === 0) {
+        offsets.set(eventKey(d), { base, dx: 0, dy: 0 });
+        i++;
+        continue; // first one holds the centre of the ring
+      }
+      // Which ring this index lands in, and where around it.
+      let ring = 1;
+      let seen = 1;
+      while (seen + 6 * ring <= i) {
+        seen += 6 * ring;
+        ring++;
+      }
+      const slot = i - seen;
+      const angle = (slot / (6 * ring)) * 2 * Math.PI - Math.PI / 2;
+      offsets.set(eventKey(d), {
+        base,
+        dx: Math.cos(angle) * ring * FAN_STEP,
+        dy: Math.sin(angle) * ring * FAN_STEP,
+      });
+      i++;
+    }
+  }
+  return offsets;
+}
+
+// Offsets for the markers currently on screen. Held at module scope because the
+// zoom handler has to re-apply them: they are divided by the zoom factor, so
+// they change whenever it does.
+let markerFanOffsets = new Map();
+
+function markerTransform(d) {
+  const coords = projection([d.lng, d.lat]);
+  if (!coords) return "translate(-100,-100)";
+  const off = markerFanOffsets.get(eventKey(d));
+  if (!off) return `translate(${coords[0]}, ${coords[1]})`;
+  const b = projection([off.base.lng, off.base.lat]) || coords;
+  return `translate(${b[0] + off.dx / currentZoomK}, ${b[1] + off.dy / currentZoomK})`;
+}
+
 function renderMarkers(currentEvents) {
   if (!markerLayer) return;
+  markerFanOffsets = fanOffsets(currentEvents);
   // The marker set is changing, so any pinned card may point at an event
   // that's about to disappear -- always clear it, pinned or not. Same reasoning
   // for the Discover spotlight; jumpToEvent() re-applies it after this render.
@@ -500,10 +591,7 @@ function renderMarkers(currentEvents) {
     .enter()
     .append("g")
     .attr("class", "event-marker")
-    .attr("transform", (d) => {
-      const coords = projection([d.lng, d.lat]);
-      return coords ? `translate(${coords[0]}, ${coords[1]})` : "translate(-100,-100)";
-    });
+    .attr("transform", markerTransform);
 
   // Visuals live in a nested group that's counter-scaled against the current
   // zoom level, so dots/labels stay a constant pixel size while geographic
@@ -541,10 +629,7 @@ function renderMarkers(currentEvents) {
       pinMapTooltip(event, d);
     });
 
-  const merged = entered.merge(groups).attr("transform", (d) => {
-    const coords = projection([d.lng, d.lat]);
-    return coords ? `translate(${coords[0]}, ${coords[1]})` : "translate(-100,-100)";
-  });
+  const merged = entered.merge(groups).attr("transform", markerTransform);
 
   // Markers of deselected categories stay visible but greyed; the actual grey
   // is in CSS, which beats these presentation attributes.
