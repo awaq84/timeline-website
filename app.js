@@ -727,6 +727,11 @@ function isTooltipPinned() {
 function tooltipMarkup(d, pinned) {
   const linkText = d.source === "wikidata" ? "View source on Wikidata" : "Read more on Wikipedia";
   const active = state.activeCategories.has(d.category);
+  // "Only" is a shortcut for clearing every other checkbox in the filter panel,
+  // which is otherwise twelve clicks. Once it has been used the same button has
+  // to undo itself, or the card offers no way back and the filter list is the
+  // only route out.
+  const solo = state.activeCategories.size === 1 && active;
   return `
     <div class="tooltip-image-wrap" id="tooltipImageWrap"></div>
     ${pinned ? `<button class="tooltip-close" id="tooltipClose" aria-label="Close" title="Close">&times;</button>` : ""}
@@ -739,6 +744,9 @@ function tooltipMarkup(d, pinned) {
     ${
       pinned
         ? `<a class="tooltip-link" href="${d.wiki}" target="_blank" rel="noopener noreferrer">${linkText} &rarr;</a>
+           <button class="tooltip-category-toggle" id="tooltipCategorySolo">
+             ${solo ? "Show all categories again" : `Show only &ldquo;${d.category}&rdquo;`}
+           </button>
            <button class="tooltip-category-toggle" id="tooltipCategoryToggle">
              ${active ? `Hide &ldquo;${d.category}&rdquo; on map` : `Show &ldquo;${d.category}&rdquo; again`}
            </button>`
@@ -771,6 +779,10 @@ function renderMapTooltip(anchor, d, pinned) {
       e.stopPropagation();
       toggleCategoryFromCard(d);
     });
+    document.getElementById("tooltipCategorySolo")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      soloCategoryFromCard(d);
+    });
   }
 
   if (tooltipImageCache.has(d.wiki)) {
@@ -786,6 +798,20 @@ function renderMapTooltip(anchor, d, pinned) {
 function toggleCategoryFromCard(d) {
   if (state.activeCategories.has(d.category)) state.activeCategories.delete(d.category);
   else state.activeCategories.add(d.category);
+
+  const anchor = pinnedAnchor;
+  buildCategoryFilters();
+  renderAll();
+  if (anchor) pinMapTooltip(anchor, d);
+}
+
+// Narrows the map to just this card's category, and restores everything when
+// pressed a second time. Repinning matters more here than for the hide toggle:
+// soloing removes most of the markers on screen, so without the card staying
+// put the user loses both the event they were reading and the way back.
+function soloCategoryFromCard(d) {
+  const solo = state.activeCategories.size === 1 && state.activeCategories.has(d.category);
+  state.activeCategories = solo ? new Set(CATEGORY_ORDER) : new Set([d.category]);
 
   const anchor = pinnedAnchor;
   buildCategoryFilters();

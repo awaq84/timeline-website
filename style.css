@@ -514,6 +514,13 @@ main {
   border-color: rgba(255, 255, 255, 0.28);
 }
 
+/* Two of these stack now ("Show only X" above "Hide X"), and the 10px top
+   margin each carries is meant to separate the pair from the link above, not
+   the buttons from each other. */
+.map-tooltip .tooltip-category-toggle + .tooltip-category-toggle {
+  margin-top: 6px;
+}
+
 .map-tooltip .tooltip-summary {
   font-size: 0.82rem;
   line-height: 1.45;
