@@ -146,6 +146,17 @@
   background: rgba(41, 151, 255, 0.14);
 }
 
+/* Hovering a selected option used to wipe its blue border. `.is-clickable:hover`
+   is three selectors to `.is-picked`'s two, so it won the border-colour outright
+   and the card looked deselected under the cursor -- exactly where the user is
+   looking when deciding whether their pick registered. This restates the
+   selected border at a higher specificity and brightens the fill instead, so
+   hover still responds without contradicting the selection. */
+.quiz-option.is-clickable.is-picked:hover {
+  border-color: var(--accent);
+  background: rgba(41, 151, 255, 0.22);
+}
+
 /* The row of dot, statement, and -- once graded -- year and mark. */
 .quiz-option-head {
   display: flex;
