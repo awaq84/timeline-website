@@ -380,7 +380,9 @@ function startRun() {
 function buildTiers() {
   const sorted = QUIZ_EVENTS.slice().sort((a, b) => a.y - b.y);
   run.tiers = levels().map((lv) => {
-    const pool = sorted.filter((p) => p.f >= lv.minFame);
+    // p.b is a birth or a death, barred from the levels that ask for it: four
+    // birthdays in a row is a memory test rather than a history one.
+    const pool = sorted.filter((p) => p.f >= lv.minFame && !(lv.noBio && p.b));
     return { pool, years: pool.map((p) => p.y) };
   });
 }
@@ -389,7 +391,7 @@ function loadPool() {
   if (run.loaded || run.loading) return;
   run.loading = true;
   const s = document.createElement("script");
-  s.src = "/data/quiz.js?v=2";
+  s.src = "/data/quiz.js?v=3";
   s.onload = () => {
     run.loading = false;
     if (typeof QUIZ_EVENTS === "undefined" || !QUIZ_EVENTS.length || !levels().length) {

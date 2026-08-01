@@ -77,13 +77,26 @@ const HAND_FAME = 999;
 // check every level against the pool it just generated. The names are the
 // payoff: they run from cheerful ignorance through overconfidence to something
 // unbearable, and the one you finish on is the shareable part.
+// noBio bars "X was born" and "X died" from the first six levels. They are the
+// dullest question in the set -- four birthdays in a row is a memory test, not a
+// history one -- and they were dominating, being 1,123 of the 3,012 entries and
+// almost all of the high-fame ones.
+//
+// Barring them costs the fame ramp on those levels, and there is no way around
+// it: only 58 non-biographical entries clear a sitelink count of 120, so a level
+// that excludes births and deaths cannot also demand world-famous events and
+// still have puzzles left. The floors below are therefore nearly flat at ~38
+// through level 6 -- the highest the data supports at 240+ distinct puzzles --
+// and the difficulty over that stretch comes from the window narrowing from
+// fifty years to twenty-five. From level 7 the biographies return and the fame
+// floor resumes falling, which is where the ramp gets its bite back.
 const LEVELS = [
-  { n: 1, span: 50, minFame: 120, name: "I Know History Is a Thing" },
-  { n: 2, span: 45, minFame: 90, name: "Vaguely Recalls School" },
-  { n: 3, span: 40, minFame: 70, name: "Confident at the Pub Quiz" },
-  { n: 4, span: 35, minFame: 55, name: "Dangerously Overconfident" },
-  { n: 5, span: 30, minFame: 45, name: "Owns Three Documentaries" },
-  { n: 6, span: 25, minFame: 35, name: "Actually Reads the Plaques" },
+  { n: 1, span: 50, minFame: 39, noBio: true, name: "I Know History Is a Thing" },
+  { n: 2, span: 45, minFame: 39, noBio: true, name: "Vaguely Recalls School" },
+  { n: 3, span: 40, minFame: 38, noBio: true, name: "Confident at the Pub Quiz" },
+  { n: 4, span: 35, minFame: 38, noBio: true, name: "Dangerously Overconfident" },
+  { n: 5, span: 30, minFame: 37, noBio: true, name: "Owns Three Documentaries" },
+  { n: 6, span: 25, minFame: 36, noBio: true, name: "Actually Reads the Plaques" },
   { n: 7, span: 20, minFame: 28, name: "Unbearable at Dinner Parties" },
   { n: 8, span: 15, minFame: 22, name: "Corrects the Tour Guide" },
   { n: 9, span: 10, minFame: 16, name: "Cited in Footnotes" },
@@ -224,7 +237,13 @@ async function main() {
     //
     // The hand-written entries come in at Infinity, which does not survive
     // JSON, so they are pinned to a value above the real maximum instead.
-    pool.push({ y: e.year, q, c: CATEGORY_ORDER.indexOf(e.category), s: sub, f: Number.isFinite(fame) ? fame : HAND_FAME });
+    // b marks a birth or a death. Taken from the title rather than by matching
+    // the finished statement, so a change to the phrasing rules cannot silently
+    // stop flagging them -- "born" and "died" are the suffixes those rules key
+    // on, and subjectKey() strips the same two.
+    const entry = { y: e.year, q, c: CATEGORY_ORDER.indexOf(e.category), s: sub, f: Number.isFinite(fame) ? fame : HAND_FAME };
+    if (/\s+(born|died)$/i.test(e.title)) entry.b = 1;
+    pool.push(entry);
   }
 
   pool.sort((a, b) => a.y - b.y || a.q.localeCompare(b.q));
@@ -254,8 +273,8 @@ async function main() {
   // pool that was actually just built, so a data change that starves a level
   // shows up in the build output rather than as an empty question in someone's
   // browser.
-  const countPuzzles = (span, minFame) => {
-    const sub = pool.filter((p) => p.f >= minFame);
+  const countPuzzles = (span, minFame, noBio) => {
+    const sub = pool.filter((p) => p.f >= minFame && !(noBio && p.b));
     const byYear = new Map();
     for (const p of sub) byYear.set(p.y, (byYear.get(p.y) || 0) + 1);
     const reach = Math.max(40, span * 5);
@@ -278,12 +297,12 @@ async function main() {
   console.log("\nLevel ladder:");
   let starved = 0;
   for (const lv of LEVELS) {
-    const n = countPuzzles(lv.span, lv.minFame);
-    const eligible = pool.filter((p) => p.f >= lv.minFame).length;
+    const n = countPuzzles(lv.span, lv.minFame, lv.noBio);
+    const eligible = pool.filter((p) => p.f >= lv.minFame && !(lv.noBio && p.b)).length;
     if (n < MIN_PUZZLES_PER_LEVEL) starved++;
     console.log(
       `  L${String(lv.n).padStart(2)}  ${String(lv.span).padStart(2)}y  fame>=${String(lv.minFame).padStart(3)}` +
-        `  eligible ${String(eligible).padStart(5)}  puzzles ${String(n).padStart(5)}` +
+        `  ${lv.noBio ? "no bio" : "bio ok"}  eligible ${String(eligible).padStart(5)}  puzzles ${String(n).padStart(5)}` +
         `${n < MIN_PUZZLES_PER_LEVEL ? "  <-- TOO FEW" : ""}  ${lv.name}`
     );
   }
@@ -301,8 +320,9 @@ async function main() {
 // Fields: y year, q the statement, c index into CATEGORY_ORDER, s subject key
 // (used to keep two options about the same subject out of one question), f fame
 // as a Wikidata sitelink count -- how many language Wikipedias carry the
-// article. The client uses f as its difficulty axis: level 1 draws only from
-// the most recognisable entries here, level 10 from all of them.
+// article, and b marking a birth or a death (absent otherwise). The client uses
+// both as difficulty axes: the early levels bar births and deaths entirely and
+// the fame floor falls as you climb.
 //
 // Regenerate with:  node scripts/build-quiz.mjs
 // A run is ten questions, one per level. span is the width of the target period
