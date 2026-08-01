@@ -209,32 +209,60 @@ function renderQuestion() {
 
   const list = el("div", "quiz-options");
   p.options.forEach((opt, i) => {
-    const btn = el("button", "quiz-option");
-    btn.type = "button";
     const picked = run.picked.includes(i);
-    if (picked) btn.classList.add("is-picked");
-    btn.setAttribute("aria-pressed", picked ? "true" : "false");
+
+    // Before grading an option is a button, because it is a control. After
+    // grading it stops being one and becomes a <div>, because it now contains a
+    // link to Wikipedia -- and an anchor nested inside a button is invalid HTML
+    // that browsers and screen readers handle inconsistently. A disabled button
+    // would also take the link out of the tab order entirely.
+    const box = el("div", "quiz-option");
+
+    const head = run.graded ? el("div", "quiz-option-head") : box;
 
     const dot = el("span", "quiz-dot");
     dot.style.background = QUIZ_CATEGORY_COLORS[opt.c] || "#8a8a8e";
-    btn.appendChild(dot);
+    head.appendChild(dot);
 
     // Statements are generated lower-case ("the Battle of Hastings was fought")
     // so they can be embedded in a sentence; standing alone they need a capital.
-    btn.appendChild(el("span", "quiz-option-text", opt.q.charAt(0).toUpperCase() + opt.q.slice(1)));
+    head.appendChild(el("span", "quiz-option-text", opt.q.charAt(0).toUpperCase() + opt.q.slice(1)));
 
     if (run.graded) {
-      btn.disabled = true;
-      if (p.answer.has(i)) btn.classList.add("is-correct");
-      else if (picked) btn.classList.add("is-wrong");
+      if (p.answer.has(i)) box.classList.add("is-correct");
+      else if (picked) box.classList.add("is-wrong");
       // The year is the whole point of the exercise, so reveal it on every
       // option once the answer is locked in -- including the ones nobody picked.
-      btn.appendChild(el("span", "quiz-option-year", formatYear(opt.y)));
+      head.appendChild(el("span", "quiz-option-year", formatYear(opt.y)));
+      box.appendChild(head);
+
+      // Being told you were wrong teaches nothing on its own. The description is
+      // Wikidata's, and the link is the way out to the actual article.
+      if (opt.d) box.appendChild(el("p", "quiz-option-desc", opt.d));
+      if (opt.w) {
+        const a = el("a", "quiz-option-link", "Read on Wikipedia →");
+        a.href = `https://en.wikipedia.org/wiki/${encodeURIComponent(opt.w)}`;
+        a.target = "_blank";
+        a.rel = "noopener";
+        box.appendChild(a);
+      }
     } else {
-      btn.addEventListener("click", () => pickOption(i));
+      box.setAttribute("role", "button");
+      box.tabIndex = 0;
+      box.setAttribute("aria-pressed", picked ? "true" : "false");
+      if (picked) box.classList.add("is-picked");
+      box.classList.add("is-clickable");
+      const choose = () => pickOption(i);
+      box.addEventListener("click", choose);
+      box.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          choose();
+        }
+      });
     }
 
-    list.appendChild(btn);
+    list.appendChild(box);
   });
   bodyEl.appendChild(list);
 
@@ -391,7 +419,7 @@ function loadPool() {
   if (run.loaded || run.loading) return;
   run.loading = true;
   const s = document.createElement("script");
-  s.src = "/data/quiz.js?v=3";
+  s.src = "/data/quiz.js?v=4";
   s.onload = () => {
     run.loading = false;
     if (typeof QUIZ_EVENTS === "undefined" || !QUIZ_EVENTS.length || !levels().length) {

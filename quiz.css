@@ -103,12 +103,17 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
+  align-items: stretch;
 }
 
+/* Two shapes, one class. Before grading an option is a single row and a
+   control; after grading it becomes a column holding that row plus a
+   description and a link out to Wikipedia. is-clickable marks the first case,
+   which is also the only one that should look interactive. */
 .quiz-option {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   width: 100%;
   text-align: left;
   padding: 14px 16px;
@@ -119,19 +124,39 @@
   font: inherit;
   font-size: 0.92rem;
   line-height: 1.4;
-  cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
-.quiz-option:hover:not(:disabled) {
+.quiz-option.is-clickable {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.quiz-option.is-clickable:hover {
   border-color: var(--panel-border-strong);
   background: rgba(255, 255, 255, 0.07);
   transform: translateY(-1px);
 }
 
+.quiz-option.is-clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .quiz-option.is-picked {
   border-color: var(--accent);
   background: rgba(41, 151, 255, 0.14);
+}
+
+/* The row of dot, statement, year and mark. Only exists once graded -- before
+   that the option element is the row itself. */
+.quiz-option-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
 }
 
 /* Graded state. The colours carry meaning, so each also gets a tick or a cross
@@ -150,9 +175,11 @@
 /* The mark is a flex item rather than an absolutely-positioned corner badge.
    Positioned, it sat on top of the year that appears in the same corner once
    the answer is revealed, printing "86 BC✓" over itself; in the flow the two
-   simply sit side by side and the row cannot overlap whatever its width. */
-.quiz-option.is-correct::after,
-.quiz-option.is-wrong::after {
+   simply sit side by side and the row cannot overlap whatever its width. It
+   hangs off the head rather than the option so it stays on the statement line
+   instead of dropping below the description. */
+.quiz-option.is-correct .quiz-option-head::after,
+.quiz-option.is-wrong .quiz-option-head::after {
   margin-top: 1px;
   font-size: 0.85rem;
   font-weight: 700;
@@ -160,18 +187,14 @@
   flex-shrink: 0;
 }
 
-.quiz-option.is-correct::after {
+.quiz-option.is-correct .quiz-option-head::after {
   content: "✓";
   color: var(--quiz-right);
 }
 
-.quiz-option.is-wrong::after {
+.quiz-option.is-wrong .quiz-option-head::after {
   content: "✕";
   color: var(--quiz-wrong);
-}
-
-.quiz-option:disabled {
-  cursor: default;
 }
 
 /* Category colour, matching the marker on the map. */
@@ -194,6 +217,31 @@
   white-space: nowrap;
   margin-left: 4px;
   margin-top: 1px;
+}
+
+/* Revealed detail. Indented to clear the category dot so it lines up with the
+   statement above it rather than the edge of the card. */
+.quiz-option-desc {
+  margin: 0 0 0 20px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+/* margin-top:auto pushes the link to the bottom of the card. The grid stretches
+   options in a row to equal height, so without it the links sit at whatever
+   height the description happened to end, and a row of four looks ragged. */
+.quiz-option-link {
+  margin: auto 0 0 20px;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.quiz-option-link:hover {
+  text-decoration: underline;
 }
 
 /* ---- Actions ---- */

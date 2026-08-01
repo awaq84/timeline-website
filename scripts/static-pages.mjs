@@ -95,8 +95,8 @@ export const STATIC_PAGES = [
     schemaType: "WebApplication",
     description:
       "A ten-level history quiz. Four events, one period — pick the two that belong to it. Starts with events everyone knows and ends somewhere unreasonable.",
-    head: `\n<link rel="stylesheet" href="/quiz.css?v=1">`,
-    scripts: `\n<script src="/quiz-app.js?v=2"></script>`,
+    head: `\n<link rel="stylesheet" href="/quiz.css?v=3">`,
+    scripts: `\n<script src="/quiz-app.js?v=3"></script>`,
     body: `
   <h1>History Quiz</h1>
 

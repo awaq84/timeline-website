@@ -243,6 +243,21 @@ async function main() {
     // on, and subjectKey() strips the same two.
     const entry = { y: e.year, q, c: CATEGORY_ORDER.indexOf(e.category), s: sub, f: Number.isFinite(fame) ? fame : HAND_FAME };
     if (/\s+(born|died)$/i.test(e.title)) entry.b = 1;
+
+    // w and d turn the reveal into something you can learn from rather than just
+    // be marked against. w is the article title, not the full URL: every one of
+    // them starts with the same 30 characters, and 3,012 copies of that prefix
+    // is 90KB for nothing.
+    //
+    // d is the Wikidata description, which is CC0 like everything else here.
+    // Wikipedia's own article extract would read better and cannot be used: the
+    // attribution page states plainly that no Wikipedia article text is
+    // reproduced on this site, which is what keeps CC BY-SA off the whole
+    // dataset. Wikipedia stays a link target.
+    const title = decodeURIComponent((e.wiki || "").split("/wiki/")[1] || "");
+    if (title) entry.w = title;
+    if (e.summary) entry.d = e.summary;
+
     pool.push(entry);
   }
 
@@ -323,6 +338,10 @@ async function main() {
 // article, and b marking a birth or a death (absent otherwise). The client uses
 // both as difficulty axes: the early levels bar births and deaths entirely and
 // the fame floor falls as you climb.
+//
+// w is the Wikipedia article title (append it to
+// https://en.wikipedia.org/wiki/) and d the Wikidata description, both shown
+// once an answer is revealed so the question teaches something.
 //
 // Regenerate with:  node scripts/build-quiz.mjs
 // A run is ten questions, one per level. span is the width of the target period
