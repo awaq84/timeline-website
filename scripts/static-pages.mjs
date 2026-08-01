@@ -10,6 +10,11 @@
 //   - Wikipedia is a link target only; fetch-events.mjs never requests article
 //     text, so CC BY-SA does not attach to anything on this site
 //   - app.js sets no cookie and no storage, and loads d3js.org + jsdelivr
+//   - app.js ALSO calls en.wikipedia.org on every pinned map tooltip, for the
+//     article thumbnail, which then loads from upload.wikimedia.org. That is a
+//     request the visitor never asked for, so the privacy page has to list it;
+//     it went unlisted for a while purely because nobody re-read the page after
+//     the tooltip images were added
 //   - the DNS records are PROXIED through Cloudflare, so Cloudflare terminates
 //     every request and its dashboard reports aggregate traffic to us. Check with
 //     `dig +short timelinehistory.net A`: Cloudflare IPs (104.x/172.x) mean
@@ -128,7 +133,7 @@ export const STATIC_PAGES = [
   <h1>Privacy Policy</h1>
 
   <p class="lead">Timeline History sets no cookies, runs no tracking scripts, and asks you for nothing. This page explains what little does happen.</p>
-  <p class="section-note">Last updated: 1 August 2026.</p>
+  <p class="section-note">Last updated: 2 August 2026.</p>
 
   <h2>What this site collects</h2>
   <p>Nothing. There is no account system, no contact form, no newsletter and no comments. The site never asks for your name, email address or any other personal detail, and there is nowhere for you to enter one.</p>
@@ -147,8 +152,9 @@ export const STATIC_PAGES = [
     <li><strong><a href="https://www.cloudflare.com/privacypolicy/" rel="noopener">Cloudflare</a></strong>, which handles DNS, serves the site and counts requests as described above.</li>
     <li><strong><a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">GitHub Pages</a></strong>, which stores the site and keeps server logs.</li>
     <li><strong><a href="https://d3js.org/" rel="noopener">d3js.org</a></strong> and <strong><a href="https://www.jsdelivr.com/terms/privacy-policy-jsdelivr-net" rel="noopener">jsDelivr</a></strong>, content delivery networks the map libraries and country outlines are loaded from.</li>
+    <li><strong><a href="https://foundation.wikimedia.org/wiki/Policy:Privacy_policy" rel="noopener">Wikimedia</a></strong>, when you open an event on the map. Clicking a marker asks Wikipedia for that article&rsquo;s picture, so your browser contacts <code>en.wikipedia.org</code> and, if there is a picture, <code>upload.wikimedia.org</code>. This happens whether or not you follow the link, and only for events you actually open.</li>
   </ul>
-  <p>None of these are under our control, and each has its own privacy policy, linked above. Only Cloudflare reports anything back to us, and only as the aggregate totals described above — never a record of what any particular visitor did.</p>
+  <p>None of these are under our control, and each has its own privacy policy, linked above. Only Cloudflare reports anything back to us, and only as the aggregate totals described above &mdash; never a record of what any particular visitor did. Nothing is reported back to us by Wikimedia at all; we do not learn which events you opened.</p>
 
   <h2>Links to other sites</h2>
   <p>Every event links out to Wikipedia or Wikidata. Once you follow such a link you are on the <a href="https://foundation.wikimedia.org/wiki/Policy:Privacy_policy" rel="noopener">Wikimedia Foundation's</a> site and its privacy policy applies, not this one.</p>
