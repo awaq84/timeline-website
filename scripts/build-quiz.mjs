@@ -63,15 +63,16 @@ const MAX_PER_CENTURY = Number(process.env.QUIZ_MAX_PER_CENTURY || 260);
 const HAND_FAME = 999;
 
 // A run is ten questions, one per level, and both axes tighten together: the
-// window narrows from fifty years to five while the fame floor drops, so the
-// events stop being ones everybody knows. Either axis alone would be a weaker
-// ramp -- a narrow window full of famous events is still easy, and obscure
-// events across fifty years are guessable from vibes.
+// window narrows from fifteen centuries to a decade while the fame floor drops,
+// so the events stop being ones everybody knows. Either axis alone would be a
+// weaker ramp -- a narrow window full of famous events is still easy, and
+// obscure events across a wide one are guessable from vibes.
 //
-// The floors are Wikidata sitelink counts, and the pool's own distribution set
-// them: p50 is 34, p75 is 118, p90 is 166. Level 1 at 120 is therefore roughly
-// the top quarter of an already-filtered pool, which is where the genuinely
-// world-known events live.
+// The spans are deliberately generous at the top. An earlier ladder ran 50y down
+// to 5y and was simply too hard to start on: knowing the Council of Trent from
+// the Livonian War to within fifty years is expert-level, not a warm-up. At 1500
+// years level 1 asks little more than which millennium something belongs to,
+// which is the right question for someone who has just arrived.
 //
 // This ships in data/quiz.js rather than living in the client, so the build can
 // check every level against the pool it just generated. The names are the
@@ -91,16 +92,16 @@ const HAND_FAME = 999;
 // fifty years to twenty-five. From level 7 the biographies return and the fame
 // floor resumes falling, which is where the ramp gets its bite back.
 const LEVELS = [
-  { n: 1, span: 50, minFame: 39, noBio: true, name: "I Know History Is a Thing" },
-  { n: 2, span: 45, minFame: 39, noBio: true, name: "Vaguely Recalls School" },
-  { n: 3, span: 40, minFame: 38, noBio: true, name: "Confident at the Pub Quiz" },
-  { n: 4, span: 35, minFame: 38, noBio: true, name: "Dangerously Overconfident" },
-  { n: 5, span: 30, minFame: 37, noBio: true, name: "Owns Three Documentaries" },
-  { n: 6, span: 25, minFame: 36, noBio: true, name: "Actually Reads the Plaques" },
-  { n: 7, span: 20, minFame: 28, name: "Unbearable at Dinner Parties" },
-  { n: 8, span: 15, minFame: 22, name: "Corrects the Tour Guide" },
-  { n: 9, span: 10, minFame: 16, name: "Cited in Footnotes" },
-  { n: 10, span: 5, minFame: 0, name: "Were You Personally There?" },
+  { n: 1, span: 1500, minFame: 39, noBio: true, name: "I Know History Is a Thing" },
+  { n: 2, span: 1000, minFame: 39, noBio: true, name: "Vaguely Recalls School" },
+  { n: 3, span: 800, minFame: 38, noBio: true, name: "Confident at the Pub Quiz" },
+  { n: 4, span: 600, minFame: 38, noBio: true, name: "Dangerously Overconfident" },
+  { n: 5, span: 400, minFame: 37, noBio: true, name: "Owns Three Documentaries" },
+  { n: 6, span: 300, minFame: 36, noBio: true, name: "Actually Reads the Plaques" },
+  { n: 7, span: 200, minFame: 28, name: "Unbearable at Dinner Parties" },
+  { n: 8, span: 100, minFame: 22, name: "Corrects the Tour Guide" },
+  { n: 9, span: 50, minFame: 16, name: "Cited in Footnotes" },
+  { n: 10, span: 10, minFame: 0, name: "Were You Personally There?" },
 ];
 
 // Below this a level starts repeating itself within a few plays.

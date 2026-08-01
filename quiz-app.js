@@ -6,8 +6,8 @@
 // quiz player wait for it would be absurd. This file has no dependencies at all.
 //
 // The run is ten questions, one per level, and both difficulty axes tighten
-// together: the target period narrows from fifty years to five while the fame
-// floor drops, so the events stop being ones everybody has heard of. The levels
+// together: the target period narrows from fifteen centuries to a decade while
+// the fame floor drops, so the events stop being ones everybody has heard of. The levels
 // themselves -- spans, floors and names -- are generated into data/quiz.js as
 // QUIZ_LEVELS, so the build can verify against the pool it just produced rather
 // than trusting a copy kept here by hand.
@@ -111,7 +111,8 @@ function pickTwoDistinct(candidates, taken) {
 // them clear of the edge so a near-miss doesn't feel arbitrary, `reach` keeps
 // them near enough that the period still has to be read. Both scale with the
 // span, which is what makes level 10 genuinely harder than level 1 rather than
-// just differently worded.
+// just differently worded. reach has a floor of 40 years so the narrow late
+// levels still have somewhere to draw a distractor from.
 function buildPuzzle(levelIndex) {
   const lv = levels()[levelIndex];
   const tier = run.tiers[levelIndex];
@@ -124,8 +125,15 @@ function buildPuzzle(levelIndex) {
   for (let attempt = 0; attempt < 600; attempt++) {
     const anchor = tier.pool[randInt(tier.pool.length)];
     // Slide the window randomly around the anchor so the answer is not always
-    // sitting on the first year of the period.
-    const start = anchor.y - randInt(span);
+    // sitting on the first year of the period, then pull it back inside the
+    // range the dataset actually covers.
+    //
+    // Without the clamp the window runs off both ends of history: at a span of
+    // 1500 years an anchor in the 1900s produced "which two happened between
+    // 1409 and 2908", asking the player about seven centuries that have not
+    // happened yet. Harmless to the grading -- there are no events out there to
+    // get wrong -- but it reads as broken, which is worse.
+    const start = Math.max(run.minYear, Math.min(anchor.y - randInt(span), run.maxYear - span + 1));
     const end = start + span - 1;
 
     const inside = rangeOf(tier, start, end);
@@ -332,12 +340,12 @@ function renderResult() {
       "p",
       "quiz-result-note",
       score === total
-        ? "A perfect run. Level 10 asks about events with a Wikipedia article in barely a dozen languages, so this is not luck."
+        ? "A perfect run. Level 10 pins events to a single decade and draws on articles that exist in barely a dozen languages, so this is not luck."
         : score >= 7
-        ? "Strong. The levels get deliberately obscure past level 7 — the events stop being ones most people have heard of."
+        ? "Strong. Past level 7 the events stop being ones most people have heard of, and the window is down to a century or less."
         : score >= 4
-        ? "Respectable. The window narrows from fifty years to five as you climb, so the later ones are meant to hurt."
-        : "The early levels are the famous ones and it gets harder fast. Another run draws a different set of events."
+        ? "Respectable. The window closes from fifteen centuries to ten years as you climb, so the later ones are meant to hurt."
+        : "The early levels only ask which millennium something belongs to, and it tightens fast. Another run draws a different set of events."
     )
   );
 
@@ -407,6 +415,14 @@ function startRun() {
 // it needs a years array matching the pool it is searching.
 function buildTiers() {
   const sorted = QUIZ_EVENTS.slice().sort((a, b) => a.y - b.y);
+
+  // Bounds of the whole dataset, not of a tier: buildPuzzle() keeps every window
+  // inside these so a question never spans years no event could occupy. Taken
+  // from the pool rather than hard-coded, so a rebuild that extends the data
+  // moves them automatically.
+  run.minYear = sorted[0].y;
+  run.maxYear = sorted[sorted.length - 1].y;
+
   run.tiers = levels().map((lv) => {
     // p.b is a birth or a death, barred from the levels that ask for it: four
     // birthdays in a row is a memory test rather than a history one.
@@ -419,7 +435,7 @@ function loadPool() {
   if (run.loaded || run.loading) return;
   run.loading = true;
   const s = document.createElement("script");
-  s.src = "/data/quiz.js?v=4";
+  s.src = "/data/quiz.js?v=5";
   s.onload = () => {
     run.loading = false;
     if (typeof QUIZ_EVENTS === "undefined" || !QUIZ_EVENTS.length || !levels().length) {

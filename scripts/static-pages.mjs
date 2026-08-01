@@ -96,7 +96,7 @@ export const STATIC_PAGES = [
     description:
       "A ten-level history quiz. Four events, one period — pick the two that belong to it. Starts with events everyone knows and ends somewhere unreasonable.",
     head: `\n<link rel="stylesheet" href="/quiz.css?v=3">`,
-    scripts: `\n<script src="/quiz-app.js?v=3"></script>`,
+    scripts: `\n<script src="/quiz-app.js?v=4"></script>`,
     body: `
   <h1>History Quiz</h1>
 
@@ -109,7 +109,7 @@ export const STATIC_PAGES = [
   </section>
 
   <h2>How the levels work</h2>
-  <p>Difficulty moves on two axes at once. The target period starts fifty years wide and narrows to five, so guessing roughly the right era stops being enough. At the same time the events themselves get more obscure: level 1 draws only on events with a Wikipedia article in more than 120 languages — the moon landing, the fall of the Berlin Wall, the founding of the Roman Republic — while level 10 will happily ask you about the Battle of Graus.</p>
+  <p>Difficulty moves on two axes at once. The target period starts fifteen centuries wide &mdash; level 1 is really asking which millennium something belongs to &mdash; and closes to ten years, so guessing roughly the right era stops being enough. At the same time the events themselves get more obscure: level 1 draws only on events with a Wikipedia article in more than 120 languages — the moon landing, the fall of the Berlin Wall, the founding of the Roman Republic — while level 10 will happily ask you about the Battle of Graus.</p>
   <p>You will not be marked wrong for a date nobody agrees on. Every event in the quiz is one Wikidata records to an exact year; the tens of thousands of events elsewhere on this site that are known only to a century or a decade are excluded from it entirely, because a question you cannot fairly answer is not a question.</p>
 
   <h2>Where the questions come from</h2>

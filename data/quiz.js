@@ -22,67 +22,67 @@
 const QUIZ_LEVELS = [
   {
     "n": 1,
-    "span": 50,
+    "span": 1500,
     "minFame": 39,
     "noBio": true,
     "name": "I Know History Is a Thing"
   },
   {
     "n": 2,
-    "span": 45,
+    "span": 1000,
     "minFame": 39,
     "noBio": true,
     "name": "Vaguely Recalls School"
   },
   {
     "n": 3,
-    "span": 40,
+    "span": 800,
     "minFame": 38,
     "noBio": true,
     "name": "Confident at the Pub Quiz"
   },
   {
     "n": 4,
-    "span": 35,
+    "span": 600,
     "minFame": 38,
     "noBio": true,
     "name": "Dangerously Overconfident"
   },
   {
     "n": 5,
-    "span": 30,
+    "span": 400,
     "minFame": 37,
     "noBio": true,
     "name": "Owns Three Documentaries"
   },
   {
     "n": 6,
-    "span": 25,
+    "span": 300,
     "minFame": 36,
     "noBio": true,
     "name": "Actually Reads the Plaques"
   },
   {
     "n": 7,
-    "span": 20,
+    "span": 200,
     "minFame": 28,
     "name": "Unbearable at Dinner Parties"
   },
   {
     "n": 8,
-    "span": 15,
+    "span": 100,
     "minFame": 22,
     "name": "Corrects the Tour Guide"
   },
   {
     "n": 9,
-    "span": 10,
+    "span": 50,
     "minFame": 16,
     "name": "Cited in Footnotes"
   },
   {
     "n": 10,
-    "span": 5,
+    "span": 10,
     "minFame": 0,
     "name": "Were You Personally There?"
   }
