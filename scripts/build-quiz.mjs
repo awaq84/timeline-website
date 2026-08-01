@@ -147,6 +147,93 @@ function statesAYear(q, year) {
   return /(?:^|[^0-9])\d{3,4}(?:[^0-9]|$)/.test(q);
 }
 
+// The description is shown with the options, before the player answers, so it
+// has to say what a thing was without saying when. Wikidata descriptions are
+// full of dates -- 70% of the ones in this pool carry a year, a century or a
+// decade -- and "1485 last significant battle of the Wars of the Roses" next to
+// the question "which two happened between 956 and 1755?" is not a quiz.
+//
+// Stripping rather than dropping, because the description is most of what makes
+// an unfamiliar option guessable at all: knowing the Battle of Pharsalus was
+// part of Caesar's Civil War is exactly the thread a player can pull on.
+const MONTH = "January|February|March|April|May|June|July|August|September|October|November|December";
+const PREP = "in|of|from|during|around|circa|by|between|since|until|till|to|and|or";
+const FILLER = `c|r|ca|circa|after|before|reigned|ruled|or|and|to|from|${MONTH}`;
+
+function stripDates(text) {
+  let s = text;
+
+  // Full calendar dates first, before anything else takes the year and strands
+  // the month: "March 22, 1185", "22 March 1185".
+  s = s.replace(new RegExp(`\\b(?:${MONTH})\\s+\\d{1,2}(?:st|nd|rd|th)?,?\\s*\\d{3,4}\\b`, "gi"), "");
+  s = s.replace(new RegExp(`\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:${MONTH})\\s+\\d{3,4}\\b`, "gi"), "");
+
+  // Spans stated as prose, removed whole so no orphan preposition is left:
+  // "from 161 to 180", "between 1914 and 1918".
+  s = s.replace(
+    /\b(?:from|between)\s+c?\.?\s*\d{1,4}\s*(?:BCE?|AD|CE)?\s*(?:to|and|[–—-])\s*c?\.?\s*\d{1,4}\s*(?:BCE?|AD|CE)?/gi,
+    ""
+  );
+
+  // Parenthetical date blobs: "(c.586–c.526 BC)", "(1802-1885)", "(37–41)".
+  // Removed when what is inside is essentially a date -- stripping digits, era
+  // markers and connectives leaves almost nothing. Keeps "(now Istanbul)".
+  const parenIsDate = (m) =>
+    m.replace(/[()\d\s.,;:/–—-]/g, "").replace(new RegExp(`(?:BCE?|AD|CE|${FILLER})`, "gi"), "").length <= 2;
+  s = s.replace(/\s*\([^)]*\d[^)]*\)/g, (m) => (parenIsDate(m) ? "" : m));
+
+  // "Nth century" / "Nth-century", and decades: "440s BCE", "1920s".
+  s = s.replace(/\b\d{1,2}(?:st|nd|rd|th)[-\s]centur(?:y|ies)(?:\s+(?:BCE?|AD|CE))?\b/gi, "");
+  s = s.replace(/\b\d{2,4}s(?:\s*(?:BCE?|AD|CE))?\b/gi, "");
+
+  // Years carrying an era marker, either order, any spacing.
+  s = s.replace(/\b(?:BCE?|AD|CE)\s*\d{1,4}(?:\s*(?:[–—/-]|\bor\b)\s*\d{1,4})*/gi, "");
+  s = s.replace(/\bc?\.?\s*\d{1,4}(?:\s*(?:[–—/-]|\bor\b)\s*c?\.?\s*\d{1,4})*\s*(?:BCE?|AD|CE)\b/gi, "");
+
+  // Bare years. Three digits or more anywhere; one or two digits only when they
+  // open the text, where in this dataset they are always a year ("43 battle").
+  // The lookahead spares ordinals -- "264th pope" is not a date.
+  s = s.replace(/\b\d{3,4}\s*[–—-]\s*\d{2,4}\b(?!\s*(?:st|nd|rd|th))/g, "");
+  s = s.replace(/\b\d{3,4}\b(?!\s*(?:st|nd|rd|th))/g, "");
+  s = s.replace(/^\s*\d{1,4}\s+(?=[a-z])/i, "");
+
+  // Tidy up. Parentheses emptied by the removals go now rather than earlier,
+  // because it is those removals that empty them: "(c. AD 46 – after AD 119)"
+  // survives the date test on its words and only then becomes "(c. – after )".
+  s = s.replace(new RegExp(`\\((?:[\\s,.;:/–—-]|\\b(?:${FILLER})\\b)*\\)`, "gi"), "");
+  s = s.replace(/\s*\(\s*\)\s*/g, " ");
+  for (let i = 0; i < 3; i++) {
+    s = s.replace(new RegExp(`\\b(?:${PREP})\\s+(?=(?:${PREP})\\b)`, "gi"), "");
+    s = s.replace(new RegExp(`\\b(?:${PREP})\\s*(?=[,.;)]|$)`, "gi"), "");
+  }
+  s = s.replace(/\s{2,}/g, " ").replace(/\s+([,.;:])/g, "$1");
+  s = s.replace(/^[\s,.;:–—-]+/, "").replace(/[\s,;:–—-]+$/, "").replace(/\.{2,}/g, ".");
+
+  if (s) s = s.charAt(0).toUpperCase() + s.slice(1);
+  return s.trim();
+}
+
+// What survives stripping is only usable if it still reads as English and still
+// says something. A handful of descriptions are nothing but a date, and a
+// handful more use abbreviated months the rules above do not catch and come out
+// with an empty bracket in them. Both are dropped rather than chased with more
+// regex: the option simply shows no description, which costs nothing.
+const MIN_DESC = 12;
+
+function usableDescription(text) {
+  const s = stripDates(text);
+  if (s.length < MIN_DESC) return null;
+  if (/\(\s*[,.;]?\s*\)|\(\s|\s\)/.test(s)) return null;
+  if (new RegExp(`\\b(?:${PREP})\\s+(?:${PREP})\\b`, "i").test(s)) return null;
+  // Belt and braces: if a date survived all of that, the description is unusable
+  // for a question whose whole point is guessing the date.
+  const noOrdinals = s.replace(/\b\d+\s?(?:st|nd|rd|th)\b/g, "");
+  if (/(?:^|[^0-9])\d{3,4}(?:[^0-9]|$)/.test(noOrdinals)) return null;
+  if (/\b\d{1,4}\s?(?:BCE?|AD|CE)\b/i.test(s) || /\b(?:BCE?|AD|CE)\s?\d/i.test(s)) return null;
+  if (/\b\d{1,2}(?:st|nd|rd|th)[-\s]century\b/i.test(s) || /\b\d{2,4}s\b/.test(s)) return null;
+  return s;
+}
+
 function subjectKey(title) {
   return title
     .replace(/\s+(born|died|founded|dissolved|completed|opened)$/i, "")
@@ -257,7 +344,8 @@ async function main() {
     // dataset. Wikipedia stays a link target.
     const title = decodeURIComponent((e.wiki || "").split("/wiki/")[1] || "");
     if (title) entry.w = title;
-    if (e.summary) entry.d = e.summary;
+    const desc = e.summary ? usableDescription(e.summary) : null;
+    if (desc) entry.d = desc;
 
     pool.push(entry);
   }
@@ -341,8 +429,11 @@ async function main() {
 // the fame floor falls as you climb.
 //
 // w is the Wikipedia article title (append it to
-// https://en.wikipedia.org/wiki/) and d the Wikidata description, both shown
-// once an answer is revealed so the question teaches something.
+// https://en.wikipedia.org/wiki/) and d the Wikidata description with every
+// date stripped out of it. The description is shown alongside the options
+// BEFORE the player answers -- it is context to reason from -- so it must not
+// state the year it is asking about. Entries whose description could not be
+// cleaned safely simply have no d.
 //
 // Regenerate with:  node scripts/build-quiz.mjs
 // A run is ten questions, one per level. span is the width of the target period

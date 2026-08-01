@@ -219,14 +219,13 @@ function renderQuestion() {
   p.options.forEach((opt, i) => {
     const picked = run.picked.includes(i);
 
-    // Before grading an option is a button, because it is a control. After
-    // grading it stops being one and becomes a <div>, because it now contains a
-    // link to Wikipedia -- and an anchor nested inside a button is invalid HTML
-    // that browsers and screen readers handle inconsistently. A disabled button
-    // would also take the link out of the tab order entirely.
+    // A <div> with button semantics rather than a real <button>. Once graded the
+    // option contains a link to Wikipedia, and an anchor nested inside a button
+    // is invalid HTML that browsers and assistive tech handle inconsistently; a
+    // disabled button would also drop that link out of the tab order. role,
+    // tabindex and the Enter/Space handler below restore what <button> gave.
     const box = el("div", "quiz-option");
-
-    const head = run.graded ? el("div", "quiz-option-head") : box;
+    const head = el("div", "quiz-option-head");
 
     const dot = el("span", "quiz-dot");
     dot.style.background = QUIZ_CATEGORY_COLORS[opt.c] || "#8a8a8e";
@@ -242,11 +241,15 @@ function renderQuestion() {
       // The year is the whole point of the exercise, so reveal it on every
       // option once the answer is locked in -- including the ones nobody picked.
       head.appendChild(el("span", "quiz-option-year", formatYear(opt.y)));
-      box.appendChild(head);
+    }
+    box.appendChild(head);
 
-      // Being told you were wrong teaches nothing on its own. The description is
-      // Wikidata's, and the link is the way out to the actual article.
-      if (opt.d) box.appendChild(el("p", "quiz-option-desc", opt.d));
+    // Shown before the answer as well as after: it is what makes an unfamiliar
+    // option guessable rather than a coin toss. build-quiz.mjs strips every date
+    // out of it first, so it says what the thing was without saying when.
+    if (opt.d) box.appendChild(el("p", "quiz-option-desc", opt.d));
+
+    if (run.graded) {
       if (opt.w) {
         const a = el("a", "quiz-option-link", "Read on Wikipedia →");
         a.href = `https://en.wikipedia.org/wiki/${encodeURIComponent(opt.w)}`;
@@ -435,7 +438,7 @@ function loadPool() {
   if (run.loaded || run.loading) return;
   run.loading = true;
   const s = document.createElement("script");
-  s.src = "/data/quiz.js?v=5";
+  s.src = "/data/quiz.js?v=6";
   s.onload = () => {
     run.loading = false;
     if (typeof QUIZ_EVENTS === "undefined" || !QUIZ_EVENTS.length || !levels().length) {

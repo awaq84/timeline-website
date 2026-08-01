@@ -106,10 +106,9 @@
   align-items: stretch;
 }
 
-/* Two shapes, one class. Before grading an option is a single row and a
-   control; after grading it becomes a column holding that row plus a
-   description and a link out to Wikipedia. is-clickable marks the first case,
-   which is also the only one that should look interactive. */
+/* Always a column: the statement row, the dateless description under it, and
+   after grading a link out to Wikipedia. is-clickable marks the ungraded state,
+   which is the only one that should look interactive. */
 .quiz-option {
   display: flex;
   flex-direction: column;
@@ -128,9 +127,6 @@
 }
 
 .quiz-option.is-clickable {
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 10px;
   cursor: pointer;
 }
 
@@ -150,8 +146,7 @@
   background: rgba(41, 151, 255, 0.14);
 }
 
-/* The row of dot, statement, year and mark. Only exists once graded -- before
-   that the option element is the row itself. */
+/* The row of dot, statement, and -- once graded -- year and mark. */
 .quiz-option-head {
   display: flex;
   align-items: flex-start;
