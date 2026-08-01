@@ -10,6 +10,11 @@
 //   - Wikipedia is a link target only; fetch-events.mjs never requests article
 //     text, so CC BY-SA does not attach to anything on this site
 //   - app.js sets no cookie and no storage, and loads d3js.org + jsdelivr
+//   - the DNS records are PROXIED through Cloudflare, so Cloudflare terminates
+//     every request and its dashboard reports aggregate traffic to us. Check with
+//     `dig +short timelinehistory.net A`: Cloudflare IPs (104.x/172.x) mean
+//     proxied, GitHub's 185.199.108-111.153 mean DNS-only and the analytics
+//     paragraph below is then claiming more than actually happens.
 // If any of that changes, these pages are wrong and need editing.
 
 export const STATIC_PAGES = [
@@ -80,12 +85,12 @@ export const STATIC_PAGES = [
     slug: "privacy",
     title: "Privacy Policy",
     description:
-      "Timeline History sets no cookies, runs no analytics and collects no personal data. What the site does and does not do with your information.",
+      "Timeline History sets no cookies, runs no tracking scripts and collects no personal data. What the site does and does not do with your information.",
     body: `
   <h1>Privacy Policy</h1>
 
-  <p class="lead">Timeline History sets no cookies, runs no analytics, and asks you for nothing. This page explains what little does happen.</p>
-  <p class="section-note">Last updated: 26 July 2026.</p>
+  <p class="lead">Timeline History sets no cookies, runs no tracking scripts, and asks you for nothing. This page explains what little does happen.</p>
+  <p class="section-note">Last updated: 1 August 2026.</p>
 
   <h2>What this site collects</h2>
   <p>Nothing. There is no account system, no contact form, no newsletter and no comments. The site never asks for your name, email address or any other personal detail, and there is nowhere for you to enter one.</p>
@@ -94,16 +99,18 @@ export const STATIC_PAGES = [
   <p>This site sets no cookies and writes nothing to your browser's local or session storage. Your filter selections and the year you are viewing live in the page's URL and in memory only, and are gone when you close the tab.</p>
 
   <h2>Analytics</h2>
-  <p>There are none. No Google Analytics, no tracking pixels, no fingerprinting, no third-party measurement of any kind.</p>
+  <p>Nothing on this site measures you. There is no Google Analytics, no tracking pixel, no fingerprinting, and no script of any kind that runs in your browser to record what you do. Nothing you click, filter or scroll is reported anywhere.</p>
+  <p>Visits are counted at the network edge instead. Every request passes through <a href="https://www.cloudflare.com/privacypolicy/" rel="noopener">Cloudflare</a> on its way to the site, and Cloudflare produces totals from that — how many requests arrived, which pages were asked for, roughly which countries they came from, and how much of it was automated rather than human. Those totals are visible to whoever runs this site.</p>
+  <p>This happens on Cloudflare's servers as a by-product of delivering the page, not in your browser. It puts nothing on your device, it cannot follow you to any other site, and the figures are aggregate — they say a hundred people opened the map yesterday, not which hundred. Cloudflare does see your IP address in the course of serving you, exactly as GitHub Pages already did and as every web server must; that is covered below.</p>
 
   <h2>Third parties that do see something</h2>
   <p>Loading any web page reveals your IP address and browser details to whoever serves it. For this site that means:</p>
   <ul>
-    <li><strong><a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">GitHub Pages</a></strong>, which hosts the site and keeps server logs.</li>
-    <li><strong><a href="https://www.cloudflare.com/privacypolicy/" rel="noopener">Cloudflare</a></strong>, which provides DNS and sits in front of the site.</li>
+    <li><strong><a href="https://www.cloudflare.com/privacypolicy/" rel="noopener">Cloudflare</a></strong>, which handles DNS, serves the site and counts requests as described above.</li>
+    <li><strong><a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">GitHub Pages</a></strong>, which stores the site and keeps server logs.</li>
     <li><strong><a href="https://d3js.org/" rel="noopener">d3js.org</a></strong> and <strong><a href="https://www.jsdelivr.com/terms/privacy-policy-jsdelivr-net" rel="noopener">jsDelivr</a></strong>, content delivery networks the map libraries and country outlines are loaded from.</li>
   </ul>
-  <p>None of these are under our control, and each has its own privacy policy, linked above. We receive no data from any of them.</p>
+  <p>None of these are under our control, and each has its own privacy policy, linked above. Only Cloudflare reports anything back to us, and only as the aggregate totals described above — never a record of what any particular visitor did.</p>
 
   <h2>Links to other sites</h2>
   <p>Every event links out to Wikipedia or Wikidata. Once you follow such a link you are on the <a href="https://foundation.wikimedia.org/wiki/Policy:Privacy_policy" rel="noopener">Wikimedia Foundation's</a> site and its privacy policy applies, not this one.</p>
