@@ -81,6 +81,43 @@ export const STATIC_PAGES = [
 `,
   },
 
+  // The quiz. Unlike its three neighbours here this page is interactive, which
+  // is why layout() grew `head` and `scripts` -- it needs quiz.css and
+  // quiz-app.js, and the prose pages must not start carrying them.
+  //
+  // The intro below is not filler. Everything a player actually sees is built by
+  // JavaScript from data/quiz.js, so a crawler arriving here finds an empty
+  // <div> and nothing else; without real text on the page there is nothing to
+  // index and no reason for it to rank for anything.
+  {
+    slug: "quiz",
+    title: "History Quiz",
+    schemaType: "WebApplication",
+    description:
+      "A ten-level history quiz. Four events, one period — pick the two that belong to it. Starts with events everyone knows and ends somewhere unreasonable.",
+    head: `\n<link rel="stylesheet" href="/quiz.css?v=1">`,
+    scripts: `\n<script src="/quiz-app.js?v=1"></script>`,
+    body: `
+  <h1>History Quiz</h1>
+
+  <p class="lead">Ten questions, ten levels. Each one shows you four events and a period of history, and asks which two of the four fall inside it. Get it right and the next level narrows the period and reaches for less famous events.</p>
+
+  <section class="quiz-section" id="quizSection">
+    <div class="quiz-body" id="quizBody">
+      <p class="quiz-loading">Loading questions&hellip;</p>
+    </div>
+  </section>
+
+  <h2>How the levels work</h2>
+  <p>Difficulty moves on two axes at once. The target period starts fifty years wide and narrows to five, so guessing roughly the right era stops being enough. At the same time the events themselves get more obscure: level 1 draws only on events with a Wikipedia article in more than 120 languages — the moon landing, the fall of the Berlin Wall, the founding of the Roman Republic — while level 10 will happily ask you about the Battle of Graus.</p>
+  <p>You will not be marked wrong for a date nobody agrees on. Every event in the quiz is one Wikidata records to an exact year; the tens of thousands of events elsewhere on this site that are known only to a century or a decade are excluded from it entirely, because a question you cannot fairly answer is not a question.</p>
+
+  <h2>Where the questions come from</h2>
+  <p>All 3,012 of them are drawn from the same <a href="/about/">Wikidata-derived dataset</a> behind the <a href="/">interactive map</a>, filtered down to events that are dated precisely, phrased as a statement of something that happened, and well enough recorded to be a fair question. Nothing is written by hand except the phrasing of a few dozen famous events whose titles do not read as sentences.</p>
+  <p>Your score lives in the page and nowhere else. This site <a href="/privacy/">sets no cookies and stores nothing</a>, so closing the tab ends the run — there is no leaderboard and no account.</p>
+`,
+  },
+
   {
     slug: "privacy",
     title: "Privacy Policy",

@@ -56,6 +56,43 @@ const MIN_FAME_PEOPLE = Number(process.env.QUIZ_MIN_FAME_PEOPLE || 90);
 // proportionally present instead of pretending they are as well recorded.
 const MAX_PER_CENTURY = Number(process.env.QUIZ_MAX_PER_CENTURY || 260);
 
+// Stands in for the Infinity the hand-written phrasings carry through the
+// candidate list. They are the moon landing, Pearl Harbor, the fall of the
+// Berlin Wall, and they belong on level 1 whatever their sitelink count says;
+// this just has to sit above the real maximum (Einstein, 320) to put them there.
+const HAND_FAME = 999;
+
+// A run is ten questions, one per level, and both axes tighten together: the
+// window narrows from fifty years to five while the fame floor drops, so the
+// events stop being ones everybody knows. Either axis alone would be a weaker
+// ramp -- a narrow window full of famous events is still easy, and obscure
+// events across fifty years are guessable from vibes.
+//
+// The floors are Wikidata sitelink counts, and the pool's own distribution set
+// them: p50 is 34, p75 is 118, p90 is 166. Level 1 at 120 is therefore roughly
+// the top quarter of an already-filtered pool, which is where the genuinely
+// world-known events live.
+//
+// This ships in data/quiz.js rather than living in the client, so the build can
+// check every level against the pool it just generated. The names are the
+// payoff: they run from cheerful ignorance through overconfidence to something
+// unbearable, and the one you finish on is the shareable part.
+const LEVELS = [
+  { n: 1, span: 50, minFame: 120, name: "I Know History Is a Thing" },
+  { n: 2, span: 45, minFame: 90, name: "Vaguely Recalls School" },
+  { n: 3, span: 40, minFame: 70, name: "Confident at the Pub Quiz" },
+  { n: 4, span: 35, minFame: 55, name: "Dangerously Overconfident" },
+  { n: 5, span: 30, minFame: 45, name: "Owns Three Documentaries" },
+  { n: 6, span: 25, minFame: 35, name: "Actually Reads the Plaques" },
+  { n: 7, span: 20, minFame: 28, name: "Unbearable at Dinner Parties" },
+  { n: 8, span: 15, minFame: 22, name: "Corrects the Tour Guide" },
+  { n: 9, span: 10, minFame: 16, name: "Cited in Footnotes" },
+  { n: 10, span: 5, minFame: 0, name: "Were You Personally There?" },
+];
+
+// Below this a level starts repeating itself within a few plays.
+const MIN_PUZZLES_PER_LEVEL = 200;
+
 // Mirrors CATEGORY_ORDER in app.js. The pool stores a category index rather than
 // the name: at several thousand entries the repeated strings are most of the
 // file, and the client needs the index anyway to pick the marker colour.
@@ -162,7 +199,7 @@ async function main() {
   const seenSubjectYear = new Set();
   const pool = [];
 
-  for (const { e, q, hand } of candidates) {
+  for (const { e, q, hand, fame } of candidates) {
     const c = centuryOf(e.year);
     const used = perCentury.get(c) || 0;
     if (!hand && used >= MAX_PER_CENTURY) continue;
@@ -176,7 +213,18 @@ async function main() {
     seenSubjectYear.add(key);
 
     perCentury.set(c, used + 1);
-    pool.push({ y: e.year, q, c: CATEGORY_ORDER.indexOf(e.category), s: sub });
+
+    // Fame ships with each entry because the client needs it: the quiz is a
+    // ten-level ladder and the level is what sets the fame floor, so level 1
+    // draws only from events with a Wikipedia article in 120+ languages and
+    // level 10 from anything here. Categories are the wrong axis for that --
+    // "Major Events" is a filing label, not a measure of what people know, and
+    // it holds only 56 of these entries. Hastings is filed under wars, Einstein
+    // under people, and both belong on level 1.
+    //
+    // The hand-written entries come in at Infinity, which does not survive
+    // JSON, so they are pinned to a value above the real maximum instead.
+    pool.push({ y: e.year, q, c: CATEGORY_ORDER.indexOf(e.category), s: sub, f: Number.isFinite(fame) ? fame : HAND_FAME });
   }
 
   pool.sort((a, b) => a.y - b.y || a.q.localeCompare(b.q));
@@ -199,21 +247,49 @@ async function main() {
   console.log("\nEra spread:");
   for (const [k, v] of Object.entries(eras)) console.log(`  ${String(v).padStart(5)}  ${k}  (${((v / pool.length) * 100).toFixed(0)}%)`);
 
-  // Density is what decides whether a difficulty is playable: a 1-year question
-  // needs two pool events sharing a year, and there is no point offering a
-  // setting the data cannot support. Reported rather than assumed.
-  const byYear = new Map();
-  for (const p of pool) byYear.set(p.y, (byYear.get(p.y) || 0) + 1);
-  const years = [...byYear.keys()].sort((a, b) => a - b);
-  console.log("\nAnchors with at least two events in the window:");
-  for (const span of [1, 5, 15, 25]) {
+  // Density is what decides whether a level is playable. A question needs two
+  // pool events inside the window AND two outside it but near enough to be
+  // plausible distractors, so a level whose window is narrow and whose fame
+  // floor is high can simply have no valid puzzles. Counted here against the
+  // pool that was actually just built, so a data change that starves a level
+  // shows up in the build output rather than as an empty question in someone's
+  // browser.
+  const countPuzzles = (span, minFame) => {
+    const sub = pool.filter((p) => p.f >= minFame);
+    const byYear = new Map();
+    for (const p of sub) byYear.set(p.y, (byYear.get(p.y) || 0) + 1);
+    const reach = Math.max(40, span * 5);
+    const gap = Math.max(1, Math.round(span / 2));
     let n = 0;
-    for (const y of years) {
+    for (const start of byYear.keys()) {
       let inW = 0;
-      for (let v = y; v < y + span; v++) inW += byYear.get(v) || 0;
-      if (inW >= 2) n++;
+      for (let v = start; v < start + span; v++) inW += byYear.get(v) || 0;
+      if (inW < 2) continue;
+      let band = 0;
+      for (const [y, c] of byYear) {
+        const d = y < start ? start - y : y >= start + span ? y - (start + span - 1) : 0;
+        if (d >= gap && d <= reach) band += c;
+      }
+      if (band >= 2) n++;
     }
-    console.log(`  ${String(n).padStart(5)}  ${span}-year window`);
+    return n;
+  };
+
+  console.log("\nLevel ladder:");
+  let starved = 0;
+  for (const lv of LEVELS) {
+    const n = countPuzzles(lv.span, lv.minFame);
+    const eligible = pool.filter((p) => p.f >= lv.minFame).length;
+    if (n < MIN_PUZZLES_PER_LEVEL) starved++;
+    console.log(
+      `  L${String(lv.n).padStart(2)}  ${String(lv.span).padStart(2)}y  fame>=${String(lv.minFame).padStart(3)}` +
+        `  eligible ${String(eligible).padStart(5)}  puzzles ${String(n).padStart(5)}` +
+        `${n < MIN_PUZZLES_PER_LEVEL ? "  <-- TOO FEW" : ""}  ${lv.name}`
+    );
+  }
+  if (starved) {
+    console.error(`\n${starved} level(s) below ${MIN_PUZZLES_PER_LEVEL} distinct puzzles -- players would see repeats.`);
+    process.exitCode = 1;
   }
 
   const header = `// GENERATED by scripts/build-quiz.mjs -- do not edit by hand.
@@ -223,9 +299,17 @@ async function main() {
 // See the script for what is deliberately excluded and why.
 //
 // Fields: y year, q the statement, c index into CATEGORY_ORDER, s subject key
-// (used to keep two options about the same subject out of one question).
+// (used to keep two options about the same subject out of one question), f fame
+// as a Wikidata sitelink count -- how many language Wikipedias carry the
+// article. The client uses f as its difficulty axis: level 1 draws only from
+// the most recognisable entries here, level 10 from all of them.
 //
 // Regenerate with:  node scripts/build-quiz.mjs
+// A run is ten questions, one per level. span is the width of the target period
+// in years; minFame is the sitelink floor an event must clear to appear at that
+// level. Both tighten as you climb.
+const QUIZ_LEVELS = ${JSON.stringify(LEVELS, null, 2)};
+
 const QUIZ_EVENTS = [
 ${pool.map((p) => JSON.stringify(p)).join(",\n")}
 ];

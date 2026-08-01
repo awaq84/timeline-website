@@ -48,6 +48,13 @@ a:hover { text-decoration: underline; }
   color: var(--text);
 }
 
+/* Held a single link until /quiz/ arrived, so nothing separated them and the
+   header ran the two together as "Interactive mapQuiz". */
+.brand-nav {
+  display: flex;
+  gap: 18px;
+}
+
 .brand-nav a { font-size: 14px; }
 
 .page-footer {

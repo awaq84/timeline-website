@@ -32,7 +32,7 @@ const CENTURY_DIR = path.join(ROOT, "century");
 const SITEMAP_PATH = path.join(ROOT, "sitemap.xml");
 
 const SITE = "https://timelinehistory.net";
-const CSS_VERSION = 3;
+const CSS_VERSION = 4;
 
 // Mirrors CATEGORY_COLORS / CATEGORY_ORDER in app.js. Duplicated rather than
 // imported because app.js is a browser script with no exports, and turning it
@@ -149,7 +149,10 @@ const listPhrase = (items) =>
 // Wikipedia URL only as a link target and a join key. Claiming CC BY-SA asserted
 // a licence over content we don't actually carry, and named a source we don't
 // actually quote. See scripts/static-pages.mjs.
-function layout({ title, description, canonical, jsonLd, body }) {
+// `head` and `scripts` exist for /quiz/, which is the first generated page that
+// is not pure prose: it needs its own stylesheet and a script tag. Everything
+// else passes neither and comes out byte-identical to before.
+function layout({ title, description, canonical, jsonLd, body, head = "", scripts = "" }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -178,13 +181,13 @@ function layout({ title, description, canonical, jsonLd, body }) {
 <script type="application/ld+json">
 ${JSON.stringify(jsonLd, null, 2)}
 </script>
-<link rel="stylesheet" href="/page.css?v=${CSS_VERSION}">
+<link rel="stylesheet" href="/page.css?v=${CSS_VERSION}">${head}
 </head>
 <body>
 
 <header class="page-header">
   <a class="brand" href="/">Timeline History</a>
-  <nav class="brand-nav"><a href="/">Interactive map</a></nav>
+  <nav class="brand-nav"><a href="/">Interactive map</a><a href="/quiz/">Quiz</a></nav>
 </header>
 
 ${body}
@@ -193,13 +196,14 @@ ${body}
   <p>Event data from <a href="https://www.wikidata.org/" rel="noopener">Wikidata</a>, released under <a href="https://creativecommons.org/publicdomain/zero/1.0/" rel="noopener">CC0 1.0</a>.</p>
   <nav class="footer-nav">
     <a href="/">Interactive map</a>
+    <a href="/quiz/">Quiz</a>
     <a href="/about/">About</a>
     <a href="/attribution/">Sources &amp; attribution</a>
     <a href="/privacy/">Privacy</a>
   </nav>
   <p class="footer-tagline"><a href="/">Timeline History</a> &middot; an interactive world history map of 111,389 events from 3001 BC to 2026.</p>
 </footer>
-
+${scripts}
 </body>
 </html>
 `;
@@ -605,7 +609,7 @@ async function main() {
         "@context": "https://schema.org",
         "@graph": [
           {
-            "@type": "WebPage",
+            "@type": page.schemaType || "WebPage",
             name: page.title,
             url: canonical,
             description: page.description,
@@ -615,6 +619,8 @@ async function main() {
         ],
       },
       body: `<main class="prose-page">\n${page.body}</main>`,
+      head: page.head || "",
+      scripts: page.scripts || "",
     });
     const dir = path.join(ROOT, page.slug);
     await fs.mkdir(dir, { recursive: true });
