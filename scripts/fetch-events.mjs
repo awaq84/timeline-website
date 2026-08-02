@@ -235,6 +235,38 @@ function derivedTypePasses(cfg) {
 const DERIVED_TYPES = process.env.FETCH_DERIVED === "1";
 const DERIVED_MIN_SITELINKS = Number(process.env.FETCH_DERIVED_MINSITELINKS ?? 2);
 
+// Shared by the founding and dissolution passes of Empires & Countries. They
+// were separate lists, and only the founding one got widened when Chinese
+// dynasties turned out to be unreachable -- so the Qin, Tang, Song, Ming and
+// Yuan dynasties could be founded on this map but never ended. Any type added
+// to one half must apply to the other; a polity that can be created and not
+// destroyed is worse than one that is simply absent.
+const POLITY_TYPES = [
+  "wd:Q6256", // country
+  "wd:Q3624078", // sovereign state
+  "wd:Q3024240", // historical country
+  "wd:Q48349", // empire
+  "wd:Q12857432", // Chinese dynasty
+  "wd:Q50068795", // historical Chinese state
+  "wd:Q164950", // dynasty
+  "wd:Q7275", // state
+  "wd:Q1250464", // realm
+  "wd:Q1763527", // constituent country
+  "wd:Q56061", // administrative territorial entity
+  "wd:Q417175", // kingdom
+  "wd:Q133442", // city-state
+  "wd:Q154547", // duchy
+  "wd:Q208500", // principality
+  "wd:Q331644", // khanate
+];
+// Every QID above was checked against Wikidata rather than guessed from the
+// name, after guessing produced "form of government" (a metaclass) and, worse,
+// "sports venue" -- which would have quietly filled Empires & Countries with
+// stadiums. Search is no safer: it returns a New York Times podcast for
+// "caliphate", Oman for "sultanate" and a 1986 science-fiction convention for
+// "confederation". Breadth beyond this list comes from the derived type graph,
+// which is generated from subclass relations and cannot make that mistake.
+
 // Occupations (P106), each with its own notability floor. The floor is not a
 // quality judgement -- it's what keeps the query inside Wikidata's 60s budget.
 // personQuery() ends in ORDER BY DESC(?sitelinks), which forces a full sort of
@@ -740,33 +772,21 @@ const CATEGORIES = [
     // state, wd:Q1250464 polity, wd:Q164950 dynasty) and cache it, exactly as
     // ruler-positions.json already does for P39. Written but not yet run --
     // Wikidata's endpoint was refusing every connection at the time.
-    types: [
-      "wd:Q6256", // country
-      "wd:Q3624078", // sovereign state
-      "wd:Q3024240", // historical country
-      "wd:Q48349", // empire
-      "wd:Q12857432", // Chinese dynasty
-      "wd:Q50068795", // historical Chinese state
-      "wd:Q164950", // dynasty
-      "wd:Q7275", // state
-      "wd:Q1250464", // polity
-      "wd:Q1763527", // historical region
-      "wd:Q56061", // administrative territorial entity
-    ],
-    dateProps: ["wdt:P571"],
+    types: POLITY_TYPES,
+    dateProps: ["wdt:P571", "wdt:P580"],
     locProps: ["wdt:P36"],
     preferLocCoord: true,
-    minSitelinks: 5,
+    minSitelinks: 2,
     titleSuffix: "founded",
     summary: (name, year, location) => `${name} was founded${location ? `, with its capital at ${location}` : ""}.`,
     extra: [
       {
         mode: "event",
-        types: ["wd:Q6256", "wd:Q3624078", "wd:Q3024240", "wd:Q48349"],
-        dateProps: ["wdt:P576"],
+        types: POLITY_TYPES,
+        dateProps: ["wdt:P576", "wdt:P582"],
         locProps: ["wdt:P36"],
         preferLocCoord: true,
-        minSitelinks: 5,
+        minSitelinks: 2,
         titleSuffix: "dissolved",
         summary: (name, year, location) => `${name} ceased to exist${location ? `, having been centered at ${location}` : ""}.`,
       },
