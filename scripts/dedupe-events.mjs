@@ -32,9 +32,25 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_PATH = path.join(__dirname, "..", "data", "events.js");
 const DRY = process.argv.includes("--dry-run");
 
-// Falls back to the title when an event has no URL at all, so those are still
-// deduped against each other rather than being treated as unique by default.
-const identity = (e) => `${e.year}|${(e.wiki || `title:${e.title}`).toLowerCase()}`;
+// Article + year + TITLE.
+//
+// The title is load-bearing and was missing from the first version of this, at
+// real cost. One article legitimately produces more than one event in a single
+// year -- a short-lived state is founded and dissolved, an ancient figure's
+// birth and death both round to the same century anchor -- and keying on
+// article+year alone declared those the same event and deleted one of them.
+//
+// It removed 152 real rows before anyone noticed. In all 67 founding/dissolution
+// collisions the dissolution won and the founding was deleted, so the California
+// Republic, the Russian Republic, the Hungarian Soviet Republic, the Republic of
+// Formosa and the Shun dynasty each lost their founding and kept only their end.
+// 11 more merged a birth into a death. 71 spanned two categories, so the loser's
+// category filter stopped showing it at all.
+//
+// A pure coordinate duplicate has the same title (the Battle of Nineveh at both
+// 36.359,43.152 and 36.266,43.433), so adding the title still catches every case
+// this script was written for.
+const identity = (e) => `${e.year}|${(e.wiki || "no-url").toLowerCase()}|${e.title.toLowerCase()}`;
 
 function better(a, b) {
   if (!!a.prec !== !!b.prec) return a.prec ? b : a;

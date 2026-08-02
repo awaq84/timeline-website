@@ -928,9 +928,20 @@ function renderMapTooltip(anchor, d, pinned) {
     });
   }
 
+  // Only for a card the user deliberately opened.
+  //
+  // This used to run on hover too, which meant dragging the cursor across a busy
+  // region sent a stream of article titles to en.wikipedia.org -- events the
+  // visitor never chose to look at. /privacy/ said images load "only for events
+  // you actually open", and that was simply untrue: renderMapTooltip is called
+  // with pinned=false from showMapTooltip, which is bound to mouseenter.
+  //
+  // Fixed here rather than by rewriting the policy, because the policy describes
+  // the behaviour we want. A cached image still shows on hover, since that costs
+  // no request.
   if (tooltipImageCache.has(d.wiki)) {
     applyTooltipImage(token, tooltipImageCache.get(d.wiki), anchor);
-  } else {
+  } else if (pinned) {
     fetchTooltipImage(d).then((img) => applyTooltipImage(token, img, anchor));
   }
 }

@@ -438,7 +438,7 @@ function loadPool() {
   if (run.loaded || run.loading) return;
   run.loading = true;
   const s = document.createElement("script");
-  s.src = "/data/quiz.js?v=8";
+  s.src = "/data/quiz.js?v=9";
   s.onload = () => {
     run.loading = false;
     if (typeof QUIZ_EVENTS === "undefined" || !QUIZ_EVENTS.length || !levels().length) {
