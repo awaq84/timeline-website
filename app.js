@@ -424,11 +424,14 @@ function initMap() {
     .append("pattern")
     .attr("id", "disputedHatch")
     .attr("patternUnits", "userSpaceOnUse")
-    .attr("width", 6)
-    .attr("height", 6)
+    .attr("width", 9)
+    .attr("height", 9)
     .attr("patternTransform", "rotate(45)");
-  hatch.append("rect").attr("width", 6).attr("height", 6).attr("fill", "rgba(255, 159, 10, 0.10)");
-  hatch.append("line").attr("x1", 0).attr("y1", 0).attr("x2", 0).attr("y2", 6).attr("stroke", "rgba(255, 159, 10, 0.55)").attr("stroke-width", 1.6);
+  // Deliberately faint. This is a footnote on the map, not a category: it should
+  // be findable when you look for it and invisible when you are not. Wider
+  // spacing and a thinner, dimmer line read as texture rather than as a fill.
+  hatch.append("rect").attr("width", 9).attr("height", 9).attr("fill", "none");
+  hatch.append("line").attr("x1", 0).attr("y1", 0).attr("x2", 0).attr("y2", 9).attr("stroke", "rgba(255, 255, 255, 0.16)").attr("stroke-width", 0.8);
 
   zoomLayer = svg.append("g").attr("class", "zoom-layer");
   const landLayer = zoomLayer.append("g").attr("class", "land-layer");
