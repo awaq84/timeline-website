@@ -139,7 +139,16 @@ function buildPuzzle(levelIndex) {
     const inside = rangeOf(tier, start, end);
     if (inside.length < 2) continue;
 
-    const outside = rangeOf(tier, start - reach, start - gap).concat(rangeOf(tier, end + gap, end + reach));
+    // A distractor must be false for THIS window, which is not the same as
+    // sitting outside it: the same statement can be true of several years, and
+    // one of those years may be inside. pickTwoDistinct only stops two options
+    // sharing a statement within one puzzle -- it cannot see this.
+    const outside = rangeOf(tier, start - reach, start - gap)
+      .concat(rangeOf(tier, end + gap, end + reach))
+      .filter((o) => {
+        const years = run.yearsByStatement.get(o.q);
+        return !years || !years.some((y) => y >= start && y <= end);
+      });
     if (outside.length < 2) continue;
 
     const taken = new Set();
@@ -425,6 +434,18 @@ function buildTiers() {
   // moves them automatically.
   run.minYear = sorted[0].y;
   run.maxYear = sorted[sorted.length - 1].y;
+
+  // Every year each statement is true of. 86 statements in the pool are true at
+  // more than one year -- "the Siege of Constantinople took place" at twelve of
+  // them, "the Siege of Jerusalem took place" at five. Without this, such a
+  // statement gets served as a WRONG answer for a window in which it is also
+  // right, and a player who knows the 1099 siege is marked wrong for saying so.
+  run.yearsByStatement = new Map();
+  for (const p of sorted) {
+    let ys = run.yearsByStatement.get(p.q);
+    if (!ys) run.yearsByStatement.set(p.q, (ys = []));
+    ys.push(p.y);
+  }
 
   run.tiers = levels().map((lv) => {
     // p.b is a birth or a death, barred from the levels that ask for it: four

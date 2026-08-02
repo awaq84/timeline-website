@@ -42,7 +42,7 @@ export const STATIC_PAGES = [
   <p>Full details of sources and licensing are on the <a href="/attribution/">attribution page</a>.</p>
 
   <h2>How it was built</h2>
-  <p>Events are collected by category — wars, treaties, buildings, discoveries, births and deaths, and so on — through the Wikidata Query Service, then deduplicated, given coordinates where the item or its location carries them, and split into chunks the map loads on demand. The whole dataset is 28MB, so loading it up front cost about six seconds before the first marker appeared; it now arrives in pieces as you move through time.</p>
+  <p>Events are collected by category — wars, treaties, buildings, discoveries, births and deaths, and so on — through the Wikidata Query Service, then deduplicated, given coordinates where the item or its location carries them, and split into chunks the map loads on demand. The whole dataset is 29MB, so loading it up front cost about six seconds before the first marker appeared; it now arrives in pieces as you move through time.</p>
 
   <h2>What it gets wrong</h2>
   <p>It is worth being direct about the limits, because they are not small.</p>
@@ -102,7 +102,7 @@ export const STATIC_PAGES = [
     description:
       "A ten-level history quiz. Four events, one period — pick the two that belong to it. Starts with events everyone knows and ends somewhere unreasonable.",
     head: `\n<link rel="stylesheet" href="/quiz.css?v=5">`,
-    scripts: `\n<script src="/quiz-app.js?v=8"></script>`,
+    scripts: `\n<script src="/quiz-app.js?v=9"></script>`,
     body: `
   <h1>History Quiz</h1>
 
