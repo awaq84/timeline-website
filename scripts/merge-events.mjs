@@ -53,8 +53,12 @@ for (const e of events) {
   deduped.push(e);
 }
 if (removedDupes) console.log(`Dropped ${removedDupes} pre-existing exact duplicates`);
+// Rewritten in place with a loop rather than `events.push(...deduped)`. Spread
+// passes every element as a separate argument, and at 111,389 events that
+// overflows the call stack -- the merge died with "Maximum call stack size
+// exceeded" before writing anything. Same for any later bulk append here.
 events.length = 0;
-events.push(...deduped);
+for (const e of deduped) events.push(e);
 
 let totalAdded = 0;
 for (const cat of categories) {

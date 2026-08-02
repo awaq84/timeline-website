@@ -152,8 +152,22 @@ const listPhrase = (items) =>
 // `head` and `scripts` exist for /quiz/, which is the first generated page that
 // is not pure prose: it needs its own stylesheet and a script tag. Everything
 // else passes neither and comes out byte-identical to before.
+// Dataset facts injected into prose at build time. These used to be typed by
+// hand -- "111,389 events from 3001 BC to 2026" appeared in five files -- and
+// every one of them was silently wrong the moment the dataset grew. Filled from
+// the events actually loaded, so they cannot go stale again.
+let DATASET_FACTS = {};
+
+function fillFacts(text) {
+  return String(text)
+    .replace(/\{\{TOTAL_EVENTS\}\}/g, DATASET_FACTS.total ?? "")
+    .replace(/\{\{FIRST_YEAR\}\}/g, DATASET_FACTS.first ?? "")
+    .replace(/\{\{LAST_YEAR\}\}/g, DATASET_FACTS.last ?? "")
+    .replace(/\{\{APPROX_EVENTS\}\}/g, DATASET_FACTS.approx ?? "");
+}
+
 function layout({ title, description, canonical, jsonLd, body, head = "", scripts = "" }) {
-  return `<!DOCTYPE html>
+  return fillFacts(`<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -201,12 +215,12 @@ ${body}
     <a href="/attribution/">Sources &amp; attribution</a>
     <a href="/privacy/">Privacy</a>
   </nav>
-  <p class="footer-tagline"><a href="/">Timeline History</a> &middot; an interactive world history map of 111,389 events from 3001 BC to 2026.</p>
+  <p class="footer-tagline"><a href="/">Timeline History</a> &middot; an interactive world history map of {{TOTAL_EVENTS}} events from {{FIRST_YEAR}} to {{LAST_YEAR}}.</p>
 </footer>
 ${scripts}
 </body>
 </html>
-`;
+`);
 }
 
 function breadcrumb(items) {
@@ -522,6 +536,21 @@ async function main() {
   }
 
   const years = [...byYear.keys()].sort((a, b) => a - b);
+
+  // Populated before any page is rendered, because layout() reads it.
+  let totalEvents = 0;
+  let approxEvents = 0;
+  for (const rows of byYear.values()) {
+    totalEvents += rows.length;
+    for (const e of rows) if (e.prec) approxEvents++;
+  }
+  DATASET_FACTS = {
+    total: totalEvents.toLocaleString("en-US"),
+    approx: approxEvents.toLocaleString("en-US"),
+    first: yearLabel(years[0]),
+    last: yearLabel(years[years.length - 1]),
+  };
+  console.log(`Dataset: ${DATASET_FACTS.total} events, ${DATASET_FACTS.first} to ${DATASET_FACTS.last} (${DATASET_FACTS.approx} approximate-date)`);
   const total = years.reduce((s, y) => s + byYear.get(y).length, 0);
   if (total !== index.total) {
     throw new Error(`read ${total} events but index says ${index.total}`);

@@ -27,11 +27,11 @@ export const STATIC_PAGES = [
     slug: "about",
     title: "About Timeline History",
     description:
-      "What Timeline History is, where its 111,389 events come from, and how the dataset was built from Wikidata.",
+      "What Timeline History is, where its {{TOTAL_EVENTS}} events come from, and how the dataset was built from Wikidata.",
     body: `
   <h1>About Timeline History</h1>
 
-  <p class="lead">Timeline History is an interactive map of recorded history: 111,389 events from 3001 BC to 2026, each placed where it happened and dated to when it happened, so you can slide through time and watch the world fill in.</p>
+  <p class="lead">Timeline History is an interactive map of recorded history: {{TOTAL_EVENTS}} events from {{FIRST_YEAR}} to {{LAST_YEAR}}, each placed where it happened and dated to when it happened, so you can slide through time and watch the world fill in.</p>
 
   <h2>What it is</h2>
   <p>Most history online is organised by topic. You read about the Crusades, or about Song dynasty China, and each sits in its own article as though the rest of the world were paused. This site is organised by <em>time</em> instead. Move the slider to 1150 and you get the Baptistery of Parma, the Taifa of Tavira dissolving, and the Tiwanaku polity ending — things that had nothing to do with each other beyond happening at once.</p>
@@ -47,7 +47,7 @@ export const STATIC_PAGES = [
   <h2>What it gets wrong</h2>
   <p>It is worth being direct about the limits, because they are not small.</p>
   <p><strong>Coverage is skewed.</strong> Wikidata reflects who has written about what. Europe and North America are covered far more densely than the rest of the world, and the modern era far more densely than antiquity. A thin year on this map means thin records, not a quiet year.</p>
-  <p><strong>Dates are sometimes only approximate.</strong> Wikidata often knows only that something happened in, say, the 12th century, and stores that as a placeholder date of 1101 or 1150. Events like these are labelled with the period actually recorded — "12th century" rather than a year — and on year pages they are listed separately under "Dated to the wider period". 6,832 events currently carry such a label. They still appear at their placeholder year on the map, because it is the only position available and it is right to within a century, but the site does not claim they happened in that exact year.</p>
+  <p><strong>Dates are sometimes only approximate.</strong> Wikidata often knows only that something happened in, say, the 12th century, and stores that as a placeholder date of 1101 or 1150. Events like these are labelled with the period actually recorded — "12th century" rather than a year — and on year pages they are listed separately under "Dated to the wider period". {{APPROX_EVENTS}} events currently carry such a label. They still appear at their placeholder year on the map, because it is the only position available and it is right to within a century, but the site does not claim they happened in that exact year.</p>
   <p><strong>Locations are approximate too.</strong> A battle is placed at its named location's coordinates, which may be a modern city centre rather than the field it was fought on.</p>
   <p><strong>It is a snapshot.</strong> The dataset was captured at a point in time and does not update live as Wikidata changes.</p>
   <p>If something looks wrong, it is usually wrong in Wikidata, and fixing it there fixes it for everyone. Each event links to its Wikidata item or Wikipedia article so you can check.</p>
@@ -65,7 +65,7 @@ export const STATIC_PAGES = [
   <p class="lead">This site is built almost entirely from other people's work. This page records whose, and under what terms.</p>
 
   <h2>Event data — Wikidata</h2>
-  <p>All 111,389 events come from <a href="https://www.wikidata.org/" rel="noopener">Wikidata</a>: the event titles, the one-line descriptions, the dates, the date precisions and the coordinates. Wikidata content is released under the <a href="https://creativecommons.org/publicdomain/zero/1.0/" rel="noopener">Creative Commons CC0 1.0 Universal Public Domain Dedication</a>, which places it in the public domain and imposes no attribution requirement.</p>
+  <p>All {{TOTAL_EVENTS}} events come from <a href="https://www.wikidata.org/" rel="noopener">Wikidata</a>: the event titles, the one-line descriptions, the dates, the date precisions and the coordinates. Wikidata content is released under the <a href="https://creativecommons.org/publicdomain/zero/1.0/" rel="noopener">Creative Commons CC0 1.0 Universal Public Domain Dedication</a>, which places it in the public domain and imposes no attribution requirement.</p>
   <p>We credit it anyway. A public-domain dedication removes the obligation, not the debt: this site would not exist without the people who entered those statements, and readers deserve to know where the claims come from and where to check them.</p>
 
   <h2>Wikipedia</h2>
@@ -102,7 +102,7 @@ export const STATIC_PAGES = [
     description:
       "A ten-level history quiz. Four events, one period — pick the two that belong to it. Starts with events everyone knows and ends somewhere unreasonable.",
     head: `\n<link rel="stylesheet" href="/quiz.css?v=5">`,
-    scripts: `\n<script src="/quiz-app.js?v=5"></script>`,
+    scripts: `\n<script src="/quiz-app.js?v=6"></script>`,
     body: `
   <h1>History Quiz</h1>
 
