@@ -99,9 +99,14 @@ async function sparql(query, attempts = 4) {
         headers: { Accept: "application/sparql-results+json", "User-Agent": UA },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // Wikidata answers 200 then truncates the body on long queries, so the
-      // failure surfaces as a JSON parse error rather than a status code.
-      return JSON.parse(await res.text()).results.bindings;
+      // Two distinct malformed-body failures, neither of which shows up as a
+      // status code. Wikidata answers 200 then truncates on long queries, which
+      // retrying fixes. It also emits raw control characters inside string
+      // literals -- labels containing an unescaped newline or 0x1f -- which
+      // retrying does NOT fix, because the response is deterministically
+      // invalid. Stripping them is the only way past it.
+      const body = (await res.text()).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "");
+      return JSON.parse(body).results.bindings;
     } catch (err) {
       last = err;
       const wait = 5000 * (i + 1);

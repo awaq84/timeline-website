@@ -638,7 +638,42 @@ const CATEGORIES = [
     // its own point geometry).
     name: "Empires & Countries",
     mode: "event",
-    types: ["wd:Q6256", "wd:Q3624078", "wd:Q3024240", "wd:Q48349"],
+    // Four Western-framed types -- country, sovereign state, historical country,
+    // empire -- could not see a Chinese dynasty, because Wikidata classifies
+    // those as "Chinese dynasty" (Q12857432) and "historical Chinese state"
+    // (Q50068795). So the Qin, Tang, Song, Ming and Yuan dynasties were absent
+    // from the dataset entirely while Chola, Pandya, Satavahana, Zagwe, Idrisid
+    // and Buyid were all present: those happen to be filed as historical
+    // countries, and the Chinese ones are not.
+    //
+    // Han and Qing slip through only because they ALSO carry "historical
+    // country". Ming lists "sovereign state" but on a non-preferred rank, and
+    // wdt: returns only truthy statements, so it matched nothing at all.
+    //
+    // This is the third whitelist in this file to fail the same way -- ruler
+    // titles had Roman emperor but not Mughal emperor, building types had
+    // church and monastery but not mausoleum. Each list was written from a
+    // European frame and applied worldwide, and Wikidata has region-specific
+    // classes precisely because a Chinese dynasty is not a European sovereign
+    // state. Adding QIDs by hand fixes today's gap and leaves tomorrow's.
+    //
+    // TODO: derive this from the subclass graph (?t wdt:P279* wd:Q7275 for
+    // state, wd:Q1250464 polity, wd:Q164950 dynasty) and cache it, exactly as
+    // ruler-positions.json already does for P39. Written but not yet run --
+    // Wikidata's endpoint was refusing every connection at the time.
+    types: [
+      "wd:Q6256", // country
+      "wd:Q3624078", // sovereign state
+      "wd:Q3024240", // historical country
+      "wd:Q48349", // empire
+      "wd:Q12857432", // Chinese dynasty
+      "wd:Q50068795", // historical Chinese state
+      "wd:Q164950", // dynasty
+      "wd:Q7275", // state
+      "wd:Q1250464", // polity
+      "wd:Q1763527", // historical region
+      "wd:Q56061", // administrative territorial entity
+    ],
     dateProps: ["wdt:P571"],
     locProps: ["wdt:P36"],
     preferLocCoord: true,
