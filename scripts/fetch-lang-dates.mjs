@@ -59,9 +59,23 @@ const LANGS = {
         .trim();
       let m;
       // "前270年", "公元前301年", "西元前221年"
-      if ((m = t.match(/(?:公元|西元)?前\s*(\d{1,4})\s*年/))) return { year: -(+m[1]), prec: 9 };
-      // "前3世纪" -- century BC
-      if ((m = t.match(/(?:公元|西元)?前\s*(\d{1,2})\s*世纪|世紀/))) return { year: -(+m[1] * 100), prec: 7 };
+      // Anchored: 前 must open the value or follow 公元/西元. Unanchored it
+      // matched inside words -- "戰前1940年" (pre-war 1940) read as 1940 BC.
+      if ((m = t.match(/(?:^|[^\u4e00-\u9fff])(?:公元|西元)?前\s*(\d{1,4})\s*年/))) return { year: -(+m[1]), prec: 9 };
+      // "前3世纪" / "前3世紀" -- century BC.
+      //
+      // This was written as `...世纪|世紀`, and | binds loosest, so it meant
+      // "(前N世纪) OR (the bare literal 世紀)". Every traditional-character
+      // string matched the second alternative with m[1] undefined and returned
+      // { year: NaN }, which is truthy, so the caller accepted it and wrote
+      // "year": null. zh-TW and zh-HK use 世紀 predominantly, so this was the
+      // common path rather than an edge case.
+      if ((m = t.match(/(?:公元|西元)?前\s*(\d{1,2})\s*世[纪紀]/))) return { year: -(+m[1] * 100), prec: 7 };
+      // AD century, "3世紀" -- first year of it, matching the English parser.
+      if ((m = t.match(/(\d{1,2})\s*世[纪紀]/))) {
+        const y = (+m[1] - 1) * 100 + 1;
+        if (y >= 1 && y <= 2026) return { year: y, prec: 7 };
+      }
       // Plain AD year "1279年"
       if ((m = t.match(/(\d{3,4})\s*年/))) {
         const y = +m[1];
@@ -71,6 +85,15 @@ const LANGS = {
     },
     // Sample with answers verified by hand before this was allowed to run.
     tests: [
+      // The gate is only worth having if it covers the branches that broke. The
+      // 世紀 cases below all returned NaN before this was fixed, and the test
+      // list contained none of them, so it passed.
+      ["前3世紀", -300, 7],
+      ["前3世纪", -300, 7],
+      ["3世紀", 201, 7],
+      ["20世紀", 1901, 7],
+      ["世紀", null, null],
+      ["戰前1940年", 1940, 9],
       ["前270年（趙惠文王二十九年）", -270, 9],
       ["前389年", -389, 9],
       ["公元前301年", -301, 9],

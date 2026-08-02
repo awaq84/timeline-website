@@ -73,10 +73,23 @@ async function sleep(ms) {
 // sign is worse than a missing date, because nothing downstream can detect it.
 function clean(raw) {
   return String(raw)
+    // "B.C." and "B.C.E." before anything else. The era regexes below all use
+    // \b(BCE?|BC)\b, which does not match "B.C." at all -- so every dotted BC
+    // date fell through to the AD branch and came back with the WRONG SIGN.
+    // "500 B.C." became AD 500. That is the exact failure this file's own
+    // comments call worse than a missing date, and B.C. is standard American
+    // Wikipedia style, so it covered most of the classical range.
+    .replace(/\bB\.\s?C\.\s?E\./gi, "BCE")
+    .replace(/\bB\.\s?C\./gi, "BC")
+    .replace(/\bA\.\s?D\./gi, "AD")
+    // Comma grouping: "1,200 BC" matched only "200" because (\d{1,4}) cannot
+    // span a comma. This already shipped one wrong date into the harvest --
+    // Omori Katsuyama, "2,000 - 1,500 BC", was recorded as 500 BC.
+    .replace(/(\d),(?=\d{3}\b)/g, "$1")
     .replace(/<ref[^]*?<\/ref>/gi, "")
     .replace(/<ref[^>]*\/>/gi, "")
     .replace(/<[^>]*>/g, "")
-    .replace(/\{\{\s*(circa|c\.|ca\.)\s*\|?\s*/gi, "")
+    .replace(/\{\{\s*(circa|c\.|ca\.)\s*\|?\s*/gi, "~")
     .replace(/\{\{sfn[^}]*\}\}/gi, "")
     .replace(/\[\[([^\]|]*\|)?/g, "")
     .replace(/\]\]/g, "")
@@ -101,28 +114,50 @@ function parseDate(raw) {
   if (!t) return null;
 
   const bc = /\b(BCE?|BC)\b/i;
+  // "c. 1712" is not the year 1712, it is an estimate. clean() marks circa with
+  // ~ so precision can be lowered here rather than silently asserting a year --
+  // the same false precision migrate-date-precision.mjs exists to remove.
+  const approx = /~|\bc(?:a|irca)?\.?\s*\d/i.test(t);
+  const yearPrec = approx ? 7 : 9;
   let m;
 
-  // "2500-1700 BC" -- take the earlier end, which is when it was built.
-  if ((m = t.match(/(\d{1,4})\s*(?:–|—|-|to)\s*(\d{1,4})\s*(?:BCE?|BC)\b/i)))
-    return { year: -Math.max(+m[1], +m[2]), prec: 9 };
+  // "2500-1700 BC" and "between 200 and 100 BC" -- take the earlier end, which
+  // is when it was built. The "and" form used to fall through to the single
+  // -value branch below and return the LATER end, contradicting this rule.
+  if ((m = t.match(/(\d{1,5})\s*(?:–|—|-|to|and)\s*(\d{1,5})\s*(?:BCE?|BC)\b/i)))
+    return { year: -Math.max(+m[1], +m[2]), prec: yearPrec };
 
   if ((m = t.match(/(\d{1,2})(?:st|nd|rd|th)\s+millennium\s+(?:BCE?|BC)\b/i)))
     return { year: -(+m[1] * 1000), prec: 6 };
 
-  if ((m = t.match(/(\d{1,2})(?:st|nd|rd|th)\s+centur(?:y|ies)\s+(?:BCE?|BC)\b/i)))
+  // Hyphenated "5th-century BC" is very common and was matching nothing.
+  if ((m = t.match(/(\d{1,2})(?:st|nd|rd|th)[-\s]centur(?:y|ies)\s+(?:BCE?|BC)\b/i)))
     return { year: -(+m[1] * 100), prec: 7 };
+  // "AD 79" / "79 AD" / "79 CE" -- the AD branch below needs 3-4 digits, so the
+  // whole of AD 1-99 was unreachable.
+  if ((m = t.match(/\bAD\s*(\d{1,4})\b/i)) || (m = t.match(/\b(\d{1,4})\s*(?:AD|CE)\b/i))) {
+    const y = +m[1];
+    if (y >= 1 && y <= 2026) return { year: y, prec: yearPrec };
+  }
 
-  if ((m = t.match(/(\d{1,4})\s*(?:BCE?|BC)\b/i))) return { year: -(+m[1]), prec: 9 };
+  if ((m = t.match(/(\d{1,5})\s*(?:BCE?|BC)\b/i))) return { year: -(+m[1]), prec: yearPrec };
+  // Era marker first: "BC 300", "BCE 1200".
+  if ((m = t.match(/\b(?:BCE?|BC)\s*(\d{1,5})\b/i))) return { year: -(+m[1]), prec: yearPrec };
 
   // AD side. Only accepted when no BC marker appears anywhere in the value, so a
   // stray number in "2500 BC (excavated 1922)" cannot win.
   if (bc.test(t)) return null;
 
-  if ((m = t.match(/(\d{1,2})(?:st|nd|rd|th)\s+centur(?:y|ies)\b/i))) return { year: +m[1] * 100, prec: 7 };
+  // The 5th century AD is 401-500, so the first year is (n-1)*100+1. Returning
+  // n*100 put it on the LAST year and made "21st century" the year 2100, which
+  // is in the future and slipped past the <=2026 guard on the branch below.
+  if ((m = t.match(/(\d{1,2})(?:st|nd|rd|th)\s+centur(?:y|ies)\b/i))) {
+    const y = (+m[1] - 1) * 100 + 1;
+    return y <= 2026 ? { year: y, prec: 7 } : null;
+  }
   if ((m = t.match(/\b(\d{3,4})\b/))) {
     const y = +m[1];
-    if (y >= 1 && y <= 2026) return { year: y, prec: 9 };
+    if (y >= 1 && y <= 2026) return { year: y, prec: yearPrec };
   }
   return null;
 }
