@@ -156,6 +156,85 @@ function regionClause(region, subject) {
     : `${subject} wdt:P17 ${v} . VALUES ${v} { ${region.countries.join(" ")} }`;
 }
 
+// --- Derived type lists ---
+//
+// data/.cache/type-graph.json is built by fetch-type-graph.mjs, which asks
+// Wikidata what counts as a battle, a place of worship, a state, and so on, by
+// walking wdt:P279* from a named root concept. It exists because three
+// hand-written type lists in this file failed the same way -- "Roman emperor"
+// but not "Mughal emperor", "church building" but not "mausoleum", "sovereign
+// state" but not "Chinese dynasty" -- and each failure was invisible until
+// somebody asked about one specific missing thing.
+//
+// Measured against the graph, the hand-written lists reach 18% of the dated
+// instances that exist. But the raw gap is not all worth having: of 993,128
+// instances, roughly 386,000 are individual sporting fixtures -- 136,868 sports
+// seasons, 77,107 basketball games, 20,447 football club matches -- which are
+// results rather than history, and are concentrated in exactly the countries and
+// decades this dataset is already densest in. Adding them would grow the total
+// while making the regional balance worse.
+//
+// Two guards, therefore.
+// type-triage.json is type-graph.json with English labels attached and the
+// fixture/admin types already removed -- see fetch-type-graph.mjs and the triage
+// step that produced it.
+const TYPE_TRIAGE_PATH = path.join(__dirname, "..", "data", ".cache", "type-triage.json");
+
+// One instance of a recurring competition is a fixture. So is a team's season,
+// a tournament edition, a cycling stage. Local elections and roadside milestones
+// are the same problem wearing a different hat.
+const FIXTURE_TYPE =
+  /\b(season|game|match|fixture|edition|round|draw|leg|heat|race|grand prix|playoff|tie|stage)\b/i;
+const ADMIN_TYPE = /\b(municipal election|local election|by-election|milestone|boundary marker|census)\b/i;
+
+// No single type may supply more than this share of a category's types by
+// instance count. Without it, "church building" (59,895) and "Stolperstein"
+// (4,557) would between them define what the map looks like, and both are
+// overwhelmingly European. A cap keeps the long tail -- temples, forts,
+// caravanserais, stupas -- proportionally present instead of drowned.
+const MAX_TYPES_PER_CATEGORY = Number(process.env.FETCH_MAX_TYPES ?? 60);
+
+let TRIAGE_CACHE = null;
+function derivedTypes(categoryName) {
+  if (TRIAGE_CACHE === null) {
+    try {
+      TRIAGE_CACHE = JSON.parse(fsSync.readFileSync(TYPE_TRIAGE_PATH, "utf8")).keep || [];
+    } catch {
+      console.warn(`No ${TYPE_TRIAGE_PATH} -- falling back to the hand-written type lists.`);
+      TRIAGE_CACHE = [];
+    }
+  }
+  return TRIAGE_CACHE.filter((t) => t.cat === categoryName)
+    .filter((t) => !FIXTURE_TYPE.test(t.label) && !ADMIN_TYPE.test(t.label))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, MAX_TYPES_PER_CATEGORY)
+    .map((t) => `wd:${t.qid}`);
+}
+
+// One pass per derived type, for the same reason PERSON_OCCUPATIONS is split:
+// every query ends in ORDER BY DESC(?sitelinks), so cost scales with how many
+// items match rather than with LIMIT, and a single VALUES clause holding sixty
+// types never returns inside Wikidata's 60s budget. Batched in small groups so
+// a common type cannot spend the whole budget on its own.
+function derivedTypePasses(cfg) {
+  if (!DERIVED_TYPES) return [];
+  const existing = new Set((cfg.types || []).map((t) => t.replace("wd:", "")));
+  const fresh = derivedTypes(cfg.name).filter((t) => !existing.has(t.replace("wd:", "")));
+  const batches = [];
+  for (let i = 0; i < fresh.length; i += 4) batches.push(fresh.slice(i, i + 4));
+  return batches.map((types, i) => ({
+    ...cfg,
+    extra: undefined,
+    types,
+    label: `derived ${i + 1}`,
+    minSitelinks: Math.min(cfg.minSitelinks ?? 3, DERIVED_MIN_SITELINKS),
+  }));
+}
+
+// Opt-in: these roughly triple the query count for a full run.
+const DERIVED_TYPES = process.env.FETCH_DERIVED === "1";
+const DERIVED_MIN_SITELINKS = Number(process.env.FETCH_DERIVED_MINSITELINKS ?? 2);
+
 // Occupations (P106), each with its own notability floor. The floor is not a
 // quality judgement -- it's what keeps the query inside Wikidata's 60s budget.
 // personQuery() ends in ORDER BY DESC(?sitelinks), which forces a full sort of
@@ -993,7 +1072,7 @@ async function fetchCategory(cfg) {
         label: `${cfg.label ? `${cfg.label} ` : ""}${region.key}`,
       }))
     : [];
-  const subConfigs = [cfg, ...(cfg.extra || []), ...regionPasses];
+  const subConfigs = [cfg, ...(cfg.extra || []), ...regionPasses, ...derivedTypePasses(cfg)];
 
   const seen = new Map();
   const failed = [];
