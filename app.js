@@ -506,7 +506,15 @@ function initMap() {
 // into a neighbour. Marking only the ones the atlas happened to split out would
 // have looked like an editorial line rather than an omission, which is worse
 // than marking none, so this layer comes from Natural Earth's dedicated
-// disputed-areas dataset instead and covers all 79.
+// disputed-areas dataset instead, which carries all 79.
+//
+// Carries, not shows. About half render to under a pixel at world scale --
+// Gibraltar, the Spratlys, Scarborough Reef, Hans Island, Rockall, Mount Scopus
+// and 30-odd others are territories whose whole point is that they are tiny.
+// Zoom is an SVG transform over already-projected paths, so those stay invisible
+// at every zoom level rather than growing into view. They are in the data, they
+// are hoverable where the geometry is big enough to hit, and the layer should
+// not be described as showing them.
 //
 // The label is Natural Earth's own wording -- "Admin. by India; Claimed by
 // Pakistan" -- rather than anything written here. Who administers a territory
@@ -514,7 +522,7 @@ function initMap() {
 // position this site is entitled to take.
 function drawDisputedAreas() {
   if (!disputedLayer) return;
-  d3.json("data/disputed-areas.json?v=3")
+  d3.json("data/disputed-areas.json?v=4")
     .then((fc) => {
       disputedLayer
         .selectAll("path")
