@@ -60,7 +60,35 @@ const TYPE_ROOTS = [
   "wd:Q57821", // fortification
   "wd:Q1081138", // historic site
   "wd:Q2065736", // cultural property
+  "wd:Q23413", // castle
+  "wd:Q16970", // church building
+  "wd:Q32815", // mosque
+  "wd:Q515", // city
 ];
+
+// Optional country restriction, because the undated backlog is not evenly
+// spread. Archaeological sites with coordinates but no date: Mexico 279 of 289,
+// Peru 552 of 567, Bolivia 28 of 28. Ninety-seven per cent of pre-Columbian
+// sites in those three countries are invisible to a pipeline that requires a
+// date, which is why this dataset holds 42 events in North America and 50 in
+// South America before 1492.
+//
+//   node scripts/fetch-infobox-dates.mjs 6000 americas
+const COUNTRY_SETS = {
+  americas: [
+    "wd:Q96", "wd:Q419", "wd:Q750", "wd:Q736", "wd:Q298", "wd:Q739", // Mexico, Peru, Bolivia, Ecuador, Chile, Colombia
+    "wd:Q155", "wd:Q414", "wd:Q77", "wd:Q733", // Brazil, Argentina, Uruguay, Paraguay
+    "wd:Q774", "wd:Q242", "wd:Q783", "wd:Q792", "wd:Q811", "wd:Q800", "wd:Q804", // Central America
+    "wd:Q241", "wd:Q790", "wd:Q786", "wd:Q766", "wd:Q1183", // Caribbean
+    "wd:Q30", "wd:Q16", // USA, Canada
+  ],
+  africa: [
+    "wd:Q1033", "wd:Q117", "wd:Q912", "wd:Q1041", "wd:Q1032", "wd:Q1006", "wd:Q962", "wd:Q1008", // West
+    "wd:Q115", "wd:Q114", "wd:Q924", "wd:Q1036", "wd:Q1049", "wd:Q1045", "wd:Q986", // East
+    "wd:Q258", "wd:Q954", "wd:Q953", "wd:Q1029", "wd:Q916", "wd:Q1019", // Southern
+  ],
+};
+const COUNTRY_SET = COUNTRY_SETS[process.argv[3]] || null;
 
 async function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -192,12 +220,16 @@ async function sparql(query, attempts = 4) {
 async function undatedItems() {
   const out = new Map();
   for (const root of TYPE_ROOTS) {
+    const countryClause = COUNTRY_SET
+      ? `?item wdt:P17 ?rc . VALUES ?rc { ${COUNTRY_SET.join(" ")} }`
+      : "";
     const q = `SELECT ?item ?itemLabel ?article ?coord ?sl WHERE {
   ?item wdt:P31/wdt:P279* ${root} ; wdt:P625 ?coord ; wikibase:sitelinks ?sl .
+  ${countryClause}
   FILTER NOT EXISTS { ?item wdt:P571 ?a }
   FILTER NOT EXISTS { ?item wdt:P580 ?b }
   FILTER NOT EXISTS { ?item wdt:P585 ?c }
-  FILTER(?sl >= 3)
+  FILTER(?sl >= ${COUNTRY_SET ? 1 : 3})
   ?article schema:about ?item ; schema:isPartOf <https://en.wikipedia.org/> .
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 } LIMIT 4000`;

@@ -129,8 +129,45 @@ const REGIONS = [
     // Vietnam, Thailand, Indonesia, Philippines, Malaysia, Myanmar, Cambodia, Laos
     countries: ["wd:Q881", "wd:Q869", "wd:Q252", "wd:Q928", "wd:Q833", "wd:Q836", "wd:Q424", "wd:Q819"],
   },
-  { key: "africa", continent: "wd:Q15" },
+  {
+    key: "mesoamerica",
+    // Mexico, Guatemala, Belize, Honduras, El Salvador, Nicaragua, Costa Rica, Panama
+    countries: ["wd:Q96", "wd:Q774", "wd:Q242", "wd:Q783", "wd:Q792", "wd:Q811", "wd:Q800", "wd:Q804"],
+  },
+  {
+    key: "caribbean",
+    // Cuba, Haiti, Dominican Republic, Jamaica, Puerto Rico, Trinidad, Bahamas
+    countries: ["wd:Q241", "wd:Q790", "wd:Q786", "wd:Q766", "wd:Q1183", "wd:Q754", "wd:Q778"],
+  },
+  {
+    key: "andes",
+    // Peru, Bolivia, Ecuador, Chile, Colombia -- split out of south-america
+    // because the continent bucket is dominated by Brazil and Argentina, where
+    // the record is overwhelmingly post-1500.
+    countries: ["wd:Q419", "wd:Q750", "wd:Q736", "wd:Q298", "wd:Q739"],
+  },
   { key: "south-america", continent: "wd:Q18" },
+  // Africa split four ways. As a single continent bucket it is dominated by
+  // Egypt and the Maghreb: this dataset holds 6,007 events in North Africa
+  // against 1,487 in West Africa, 1,395 in East Africa, 945 in Southern Africa
+  // and 622 in Central Africa. One quota for the continent means the Nile valley
+  // spends it.
+  {
+    key: "west-africa",
+    // Nigeria, Ghana, Mali, Senegal, Burkina Faso, Niger, Guinea, Benin, Ivory Coast, Sierra Leone, Liberia, Togo
+    countries: ["wd:Q1033", "wd:Q117", "wd:Q912", "wd:Q1041", "wd:Q965", "wd:Q1032", "wd:Q1006", "wd:Q962", "wd:Q1008", "wd:Q1044", "wd:Q1014", "wd:Q945"],
+  },
+  {
+    key: "east-africa",
+    // Ethiopia, Kenya, Tanzania, Uganda, Somalia, Sudan, South Sudan, Eritrea, Rwanda, Burundi
+    countries: ["wd:Q115", "wd:Q114", "wd:Q924", "wd:Q1036", "wd:Q1045", "wd:Q1049", "wd:Q958", "wd:Q986", "wd:Q1037", "wd:Q967"],
+  },
+  {
+    key: "southern-africa",
+    // South Africa, Zimbabwe, Zambia, Mozambique, Angola, Botswana, Namibia, Madagascar, Malawi
+    countries: ["wd:Q258", "wd:Q954", "wd:Q953", "wd:Q1029", "wd:Q916", "wd:Q963", "wd:Q1030", "wd:Q1019", "wd:Q1020"],
+  },
+  { key: "africa", continent: "wd:Q15" },
 ];
 
 // A region pass binds ?item to a country, so it is a strictly narrower query than
