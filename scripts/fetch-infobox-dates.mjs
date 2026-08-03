@@ -53,7 +53,13 @@ const DATE_PARAMS =
 // Types worth asking about: things that are placed and old. Kept narrow on
 // purpose -- a modern building's infobox date is already in Wikidata, so casting
 // wider costs requests and returns nothing new.
-const TYPE_ROOTS = [
+// The full list crossed with a 22-country set is 220 queries, and the public
+// endpoint does not sustain that -- the first succeeds and the rest fail on
+// every retry, at roughly four minutes per failure cycle. TYPE_ROOTS_MIN keeps
+// the roots that actually hold the undated backlog for pre-Columbian work.
+const TYPE_ROOTS_MIN = ["wd:Q839954", "wd:Q4989906", "wd:Q44539", "wd:Q57821"];
+
+const TYPE_ROOTS_ALL = [
   "wd:Q839954", // archaeological site
   "wd:Q4989906", // monument
   "wd:Q44539", // temple
@@ -65,6 +71,8 @@ const TYPE_ROOTS = [
   "wd:Q32815", // mosque
   "wd:Q515", // city
 ];
+
+const TYPE_ROOTS = process.env.INFOBOX_ALL_TYPES === "1" ? TYPE_ROOTS_ALL : TYPE_ROOTS_MIN;
 
 // Optional country restriction, because the undated backlog is not evenly
 // spread. Archaeological sites with coordinates but no date: Mexico 279 of 289,
@@ -231,12 +239,20 @@ async function sparql(query, attempts = 4) {
 
 // Everything of an interesting type that has a place but no date, and an English
 // article to read the infobox from.
+// One country at a time when a country set is given.
+//
+// The natural form -- one VALUES clause holding all 22 countries, crossed with
+// wdt:P279* over the type root -- fails outright on the public endpoint: it
+// returns 502 or drops the socket on every retry, while a trivial query against
+// the same endpoint answers in 0.27s. It is query cost, not availability. The
+// per-country shape is proven: it returned Mexico 279, Peru 552 and Bolivia 28
+// while the combined one was still failing.
 async function undatedItems() {
   const out = new Map();
+  const countries = COUNTRY_SET || [null];
   for (const root of TYPE_ROOTS) {
-    const countryClause = COUNTRY_SET
-      ? `?item wdt:P17 ?rc . VALUES ?rc { ${COUNTRY_SET.join(" ")} }`
-      : "";
+    for (const country of countries) {
+      const countryClause = country ? `?item wdt:P17 ${country} .` : "";
     const q = `SELECT ?item ?itemLabel ?article ?coord ?sl WHERE {
   ?item wdt:P31/wdt:P279* ${root} ; wdt:P625 ?coord ; wikibase:sitelinks ?sl .
   ${countryClause}
@@ -247,27 +263,28 @@ async function undatedItems() {
   ?article schema:about ?item ; schema:isPartOf <https://en.wikipedia.org/> .
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 } LIMIT 4000`;
-    try {
-      const rows = await sparql(q);
-      for (const r of rows) {
-        const qid = r.item.value.split("/").pop();
-        if (out.has(qid)) continue;
-        const c = r.coord.value.match(/Point\(([-\d.]+) ([-\d.]+)\)/);
-        if (!c) continue;
-        out.set(qid, {
-          qid,
-          title: decodeURIComponent(r.article.value.split("/wiki/")[1]).replace(/_/g, " "),
-          label: r.itemLabel?.value || "",
-          lat: +c[2],
-          lng: +c[1],
-          sitelinks: +r.sl.value,
-        });
+      try {
+        const rows = await sparql(q);
+        for (const r of rows) {
+          const qid = r.item.value.split("/").pop();
+          if (out.has(qid)) continue;
+          const c = r.coord.value.match(/Point\(([-\d.]+) ([-\d.]+)\)/);
+          if (!c) continue;
+          out.set(qid, {
+            qid,
+            title: decodeURIComponent(r.article.value.split("/wiki/")[1]).replace(/_/g, " "),
+            label: r.itemLabel?.value || "",
+            lat: +c[2],
+            lng: +c[1],
+            sitelinks: +r.sl.value,
+          });
+        }
+        if (rows.length) console.log(`  ${root} ${country || "world"}: ${rows.length} rows, ${out.size} unique`);
+      } catch (err) {
+        console.warn(`  ${root} ${country || "world"}: ${err.message} -- skipped`);
       }
-      console.log(`  ${root}: ${rows.length} rows, ${out.size} unique so far`);
-    } catch (err) {
-      console.warn(`  ${root}: ${err.message} -- skipped`);
+      await sleep(3000);
     }
-    await sleep(1500);
   }
   return [...out.values()].sort((a, b) => b.sitelinks - a.sitelinks).slice(0, MAX_ITEMS);
 }
