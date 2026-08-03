@@ -255,12 +255,26 @@ async function main() {
     process.exit(1);
   }
 
+  // null means "not in the cache", 0 means "in the cache with no sitelinks".
   const fameOf = (e) => {
     const t = articleTitleFromWiki(e.wiki);
-    return t ? sitelinks[t] || 0 : 0;
+    if (!t) return 0;
+    return t in sitelinks ? sitelinks[t] : null;
   };
 
-  const rejected = { approx: 0, country: 0, unphrasable: 0, obscure: 0, dated: 0 };
+  // `uncached` is counted separately from `obscure` because they look identical
+  // in the output and mean opposite things. An event below the fame floor was
+  // judged and rejected; an event with no cache entry was never judged at all.
+  //
+  // After a backfill added 28,947 events, the quiz pool grew by three. Every new
+  // event scored fame 0 -- not because it was obscure, but because
+  // enrich-sitelinks.mjs had not been run, so none of their articles were in the
+  // cache. It presented as "71,019 below the fame floor" and looked like a
+  // threshold working as intended.
+  //
+  // Build order is fetch -> merge -> dedupe -> enrich-sitelinks -> build-quiz,
+  // and nothing enforces it. This at least makes a skipped step loud.
+  const rejected = { approx: 0, country: 0, unphrasable: 0, obscure: 0, dated: 0, uncached: 0 };
   const candidates = [];
 
   for (const e of events) {
@@ -280,6 +294,7 @@ async function main() {
     if (!q) { rejected.unphrasable++; continue; }
     if (statesAYear(q, e.year)) { rejected.dated++; continue; }
     const fame = fameOf(e);
+    if (fame === null) { rejected.uncached++; continue; }
     if (fame < (e.category === "People" ? MIN_FAME_PEOPLE : MIN_FAME_OTHER)) { rejected.obscure++; continue; }
     candidates.push({ e, q, fame });
   }
@@ -290,6 +305,11 @@ async function main() {
   console.log(`  dropped ${rejected.unphrasable.toLocaleString("en-US")} whose title states no event`);
   console.log(`  dropped ${rejected.dated.toLocaleString("en-US")} whose statement contains a year`);
   console.log(`  dropped ${rejected.obscure.toLocaleString("en-US")} below the fame floor`);
+  if (rejected.uncached) {
+    console.warn(
+      `  dropped ${rejected.uncached.toLocaleString("en-US")} with NO sitelink data -- run scripts/enrich-sitelinks.mjs first`
+    );
+  }
   console.log(`  ${candidates.length.toLocaleString("en-US")} candidates`);
 
   // Keep the most recognisable first, so the per-century ceiling cuts the
