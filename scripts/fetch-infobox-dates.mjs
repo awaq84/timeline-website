@@ -142,11 +142,25 @@ function parseDate(raw) {
   if (!t) return null;
 
   const bc = /\b(BCE?|BC)\b/i;
-  // "c. 1712" is not the year 1712, it is an estimate. clean() marks circa with
-  // ~ so precision can be lowered here rather than silently asserting a year --
-  // the same false precision migrate-date-precision.mjs exists to remove.
+  // "c. 1712" is not the year 1712, but it is much closer to it than "the 18th
+  // century". Circa drops precision by ONE step, to the decade -- so the site
+  // renders it "1710s", which is what the source actually said.
+  //
+  // This was century precision at first, and that was wrong in the other
+  // direction: a source saying "about 1712" was displayed as "18th century",
+  // discarding almost everything it told us in the name of caution. Refusing to
+  // state what a source says is not more honest than stating it with its
+  // uncertainty attached.
   const approx = /~|\bc(?:a|irca)?\.?\s*\d/i.test(t);
-  const yearPrec = approx ? 7 : 9;
+  // AD circa becomes a decade, BC circa a century.
+  //
+  // "c. 1712" means within a few years, and "1710s" says that. "c. 2500 BC"
+  // means within a lifetime or two, and rendering it as a decade produces
+  // "2490s BC" -- which is both a precision nobody claimed and, because the
+  // decade label is derived from the astronomical year, not even the decade the
+  // source named. "25th century BC" is what that source is actually asserting.
+  const bcCirca = approx && /\b(BCE?|BC)\b/i.test(t);
+  const yearPrec = bcCirca ? 7 : approx ? 8 : 9;
   let m;
 
   // "2500-1700 BC" and "between 200 and 100 BC" -- take the earlier end, which

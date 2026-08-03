@@ -32,9 +32,9 @@ const cases = [
   ["2nd century AD", 101, 7],
 
   // --- circa must lower precision, not assert a year ---
-  ["{{circa|1712}}", 1712, 7],
-  ["ca. 1575-1600", 1575, 7],
-  ["c. 1500", 1500, 7],
+  ["{{circa|1712}}", 1712, 8],
+  ["ca. 1575-1600", 1575, 8],
+  ["c. 1500", 1500, 8],
 
   // --- previously unreachable ---
   ["AD 79", 79, 9],
