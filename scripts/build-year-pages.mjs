@@ -521,7 +521,27 @@ ${grid}
 
 // ---- Build ----
 
+// This script reads the chunks, not data/events.js, so it must run AFTER
+// build-chunks.mjs. Running it before is silent and looks entirely successful:
+// it happily rebuilt 2,744 year pages and a 2,800-URL sitemap off the previous
+// run's chunks while events.js already held 154,493 events across 2,758 years.
+// Nothing in the output said the number was 5,737 events stale. Compare the
+// mtimes and refuse rather than publish a sitemap that omits real pages.
+async function assertChunksFresh() {
+  const [chunks, source] = await Promise.all([
+    fs.stat(path.join(DATA_DIR, "index.json")),
+    fs.stat(path.join(DATA_DIR, "events.js")),
+  ]);
+  if (chunks.mtimeMs < source.mtimeMs) {
+    throw new Error(
+      "data/index.json is older than data/events.js -- the chunks are stale.\n" +
+        "Run `node scripts/build-chunks.mjs` first, then re-run this script."
+    );
+  }
+}
+
 async function main() {
+  await assertChunksFresh();
   const index = JSON.parse(await fs.readFile(path.join(DATA_DIR, "index.json"), "utf8"));
 
   const byYear = new Map();
