@@ -130,6 +130,28 @@ const REGIONS = [
     countries: ["wd:Q881", "wd:Q869", "wd:Q252", "wd:Q928", "wd:Q833", "wd:Q836", "wd:Q424", "wd:Q819"],
   },
   {
+    // Russia and its neighbours had no region entry at all, so 17 million square
+    // kilometres competed globally and lost the same way Mexico did: 8,589
+    // events west of the Urals against 1,585 for the whole of Siberia and the
+    // Russian Far East.
+    key: "russia",
+    countries: ["wd:Q159", "wd:Q184", "wd:Q212"], // Russia, Belarus, Ukraine
+  },
+  {
+    key: "central-asia",
+    // Kazakhstan, Uzbekistan, Turkmenistan, Kyrgyzstan, Tajikistan
+    countries: ["wd:Q232", "wd:Q265", "wd:Q874", "wd:Q813", "wd:Q863"],
+  },
+  {
+    key: "caucasus",
+    countries: ["wd:Q230", "wd:Q399", "wd:Q227"], // Georgia, Armenia, Azerbaijan
+  },
+  {
+    key: "middle-east",
+    // Iran, Iraq, Turkey, Syria, Saudi Arabia, Israel, Jordan, Lebanon, Yemen
+    countries: ["wd:Q794", "wd:Q796", "wd:Q43", "wd:Q858", "wd:Q851", "wd:Q801", "wd:Q810", "wd:Q822", "wd:Q805"],
+  },
+  {
     key: "mesoamerica",
     // Mexico, Guatemala, Belize, Honduras, El Salvador, Nicaragua, Costa Rica, Panama
     countries: ["wd:Q96", "wd:Q774", "wd:Q242", "wd:Q783", "wd:Q792", "wd:Q811", "wd:Q800", "wd:Q804"],
@@ -146,7 +168,20 @@ const REGIONS = [
     // the record is overwhelmingly post-1500.
     countries: ["wd:Q419", "wd:Q750", "wd:Q736", "wd:Q298", "wd:Q739"],
   },
-  { key: "south-america", continent: "wd:Q18" },
+  // Not continent: "wd:Q18". That pass failed with a 504 and then a 500 on two
+  // consecutive categories while its neighbour "andes" and the equally broad
+  // continent: "wd:Q15" (Africa) both returned fine. The difference is Brazil,
+  // which holds more dated geolocated items than any African country, and query
+  // cost here scales with how many items match rather than with LIMIT. Giving
+  // Brazil a pass of its own halves the largest match set and hands the biggest
+  // country in the region its own row budget instead of making it share one.
+  { key: "brazil", countries: ["wd:Q155"] },
+  {
+    key: "south-america",
+    // Argentina, Chile, Uruguay, Paraguay, Venezuela, Guyana, Suriname.
+    // Peru, Bolivia, Ecuador and Colombia are covered by "andes".
+    countries: ["wd:Q414", "wd:Q298", "wd:Q77", "wd:Q733", "wd:Q717", "wd:Q734", "wd:Q730"],
+  },
   // Africa split four ways. As a single continent bucket it is dominated by
   // Egypt and the Maghreb: this dataset holds 6,007 events in North Africa
   // against 1,487 in West Africa, 1,395 in East Africa, 945 in Southern Africa
