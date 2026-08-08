@@ -456,6 +456,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/year/2050-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/year/2040-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -542,6 +547,11 @@
   </url>
   <url>
     <loc>https://timelinehistory.net/year/1761-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/1759-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -642,6 +652,11 @@
   </url>
   <url>
     <loc>https://timelinehistory.net/year/1450-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/1430-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -766,6 +781,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/year/1295-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/year/1290-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -812,6 +832,11 @@
   </url>
   <url>
     <loc>https://timelinehistory.net/year/1213-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/1208-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -972,6 +997,11 @@
   </url>
   <url>
     <loc>https://timelinehistory.net/year/930-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/925-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1271,6 +1301,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/year/691-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/year/689-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -1356,6 +1391,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/year/647-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/year/645-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -1391,6 +1431,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/year/628-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/year/626-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -1412,6 +1457,11 @@
   </url>
   <url>
     <loc>https://timelinehistory.net/year/615-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/614-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1556,6 +1606,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/year/554-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/year/553-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -1651,12 +1706,27 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/year/520-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/519-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/year/516-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://timelinehistory.net/year/515-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/513-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
