@@ -36,7 +36,22 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/century/76th-century-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/century/75th-century-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/century/70th-century-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/century/60th-century-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -56,7 +71,17 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/century/36th-century-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/century/35th-century-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/century/33rd-century-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -67,6 +92,11 @@
   </url>
   <url>
     <loc>https://timelinehistory.net/century/30th-century-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/century/29th-century-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -326,7 +356,22 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/year/7560-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/year/7500-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/7000-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/6000-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -346,7 +391,17 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://timelinehistory.net/year/3600-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://timelinehistory.net/year/3500-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/3300-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -362,6 +417,11 @@
   </url>
   <url>
     <loc>https://timelinehistory.net/year/2901-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/2900-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -382,6 +442,11 @@
   </url>
   <url>
     <loc>https://timelinehistory.net/year/2700-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/2650-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -1097,6 +1162,11 @@
   </url>
   <url>
     <loc>https://timelinehistory.net/year/911-bc/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://timelinehistory.net/year/905-bc/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>

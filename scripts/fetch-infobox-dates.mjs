@@ -354,7 +354,16 @@ async function undatedItems() {
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 } LIMIT 4000`;
       try {
-        const rows = await sparql(q);
+        // Two attempts, not four. Discovery failures here are systematic
+        // rather than transient: wd:Q4989906 (monument) has now failed for
+        // ~90% of countries on every run in every region, because its P279*
+        // closure is enormous, and no amount of retrying changes that. Four
+        // attempts with backoff costs about four minutes per failing pair, so
+        // one region spends over an hour re-proving the same thing. Since a
+        // failed pair is not cached and the next run retries it anyway, giving
+        // up sooner loses nothing and returns the endpoint to the queries that
+        // do work.
+        const rows = await sparql(q, 2);
         const batch = [];
         for (const r of rows) {
           const qid = r.item.value.split("/").pop();
