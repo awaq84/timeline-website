@@ -100,6 +100,25 @@ const COUNTRY_SETS = {
     "wd:Q241", "wd:Q790", "wd:Q786", "wd:Q766", "wd:Q1183", // Caribbean
     "wd:Q30", "wd:Q16", // USA, Canada
   ],
+  // Asia was missing, and it is the set this script was written for: Mohenjo-daro
+  // is the example in the header, it is in Pakistan, and no country set reached
+  // it. The undated backlog is heaviest exactly here -- these are the oldest
+  // built places on Earth and the ones whose dates were typed into an infobox
+  // decades before anyone thought to put them in a structured database.
+  "south-asia": [
+    "wd:Q668", "wd:Q843", "wd:Q902", "wd:Q854", "wd:Q837", "wd:Q889", // India, Pakistan, Bangladesh, Sri Lanka, Nepal, Afghanistan
+  ],
+  "east-asia": ["wd:Q148", "wd:Q17"], // China, Japan
+  "southeast-asia": [
+    "wd:Q881", "wd:Q869", "wd:Q252", "wd:Q928", "wd:Q836", "wd:Q424", // Vietnam, Thailand, Indonesia, Philippines, Myanmar, Cambodia
+  ],
+  // The Fertile Crescent and the Nile: the densest concentration of dated-only
+  // -in-prose ancient sites anywhere.
+  "middle-east": [
+    "wd:Q794", "wd:Q796", "wd:Q43", "wd:Q858", "wd:Q851", "wd:Q822", "wd:Q810", // Iran, Iraq, Turkey, Syria, Saudi Arabia, Lebanon, Jordan
+    "wd:Q79", "wd:Q1016", "wd:Q262", // Egypt, Libya, Algeria
+    "wd:Q265", "wd:Q232", "wd:Q863", // Uzbekistan, Kazakhstan, Tajikistan
+  ],
   africa: [
     "wd:Q1033", "wd:Q117", "wd:Q912", "wd:Q1041", "wd:Q1032", "wd:Q1006", "wd:Q962", "wd:Q1008", // West
     "wd:Q115", "wd:Q114", "wd:Q924", "wd:Q1036", "wd:Q1049", "wd:Q1045", "wd:Q986", // East
