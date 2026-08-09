@@ -216,6 +216,16 @@ const REGION_MIN_SITELINKS = Number(process.env.FETCH_REGION_MINSITELINKS ?? 2);
 // rebuild should not silently become a several-hundred-query job.
 //   FETCH_REGIONS=1 node scripts/fetch-events.mjs "Wars & Conflicts"
 const REGION_PASSES = process.env.FETCH_REGIONS === "1";
+// Comma-separated region keys to run instead of all of them, e.g.
+//   FETCH_ONLY_REGIONS=brazil,south-america
+// The south-america pass failed in all five categories it appeared in, and
+// re-running the whole backfill to recover two regions costs four hours to
+// redo work whose rows the merge would then discard as duplicates. With this
+// set, the base, extra and derived passes are skipped too -- only the named
+// regions run.
+const ONLY_REGIONS = process.env.FETCH_ONLY_REGIONS
+  ? new Set(process.env.FETCH_ONLY_REGIONS.split(",").map((s) => s.trim()).filter(Boolean))
+  : null;
 
 // SPARQL fragment restricting ?item to a region, via whatever variable holds the
 // place. Events join through the item's own country; people through the country
@@ -1156,7 +1166,7 @@ async function fetchCategory(cfg) {
   // fine-grained (one occupation, one building type each), and crossing them with
   // five regions would multiply a fifty-query run into several hundred.
   const regionPasses = REGION_PASSES
-    ? REGIONS.map((region) => ({
+    ? REGIONS.filter((r) => !ONLY_REGIONS || ONLY_REGIONS.has(r.key)).map((region) => ({
         ...cfg,
         extra: undefined,
         region,
@@ -1164,7 +1174,9 @@ async function fetchCategory(cfg) {
         label: `${cfg.label ? `${cfg.label} ` : ""}${region.key}`,
       }))
     : [];
-  const subConfigs = [cfg, ...(cfg.extra || []), ...regionPasses, ...derivedTypePasses(cfg)];
+  const subConfigs = ONLY_REGIONS
+    ? regionPasses
+    : [cfg, ...(cfg.extra || []), ...regionPasses, ...derivedTypePasses(cfg)];
 
   const seen = new Map();
   const failed = [];
