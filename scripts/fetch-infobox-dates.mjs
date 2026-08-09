@@ -146,8 +146,19 @@ function parseDate(raw) {
   if (/\{\{\s*convert\b/i.test(raw)) return null;
   if (/\d\s*(ha|km|mi|ft|acres?|hectares?|metres?|meters?|m2|km2|sq)\b/i.test(raw)) return null;
 
-  const t = clean(raw);
+  let t = clean(raw);
   if (!t) return null;
+
+  // "1745, 1834-1835" is a build date followed by later additions, not a range.
+  // The range branches below scan for the first range-shaped pair anywhere in
+  // the string, so they skipped the 1745 entirely and dated Kentland Farm to
+  // 1834 -- and Fort Roberdeau, built 1778, to its 1939 reconstruction. Take
+  // the first segment, which is the original construction.
+  //
+  // Only when that segment actually carries a year: "March 15, 1901" splits
+  // into a first segment with no year at all, and must fall through whole.
+  const head = t.split(/[;,]/)[0];
+  if (head !== t && /\d{3,5}/.test(head)) t = head;
 
   const bc = /\b(BCE?|BC)\b/i;
   // "c. 1712" is not the year 1712, but it is much closer to it than "the 18th
@@ -159,7 +170,10 @@ function parseDate(raw) {
   // discarding almost everything it told us in the name of caution. Refusing to
   // state what a source says is not more honest than stating it with its
   // uncertainty attached.
-  const approx = /~|\bc(?:a|irca)?\.?\s*\d/i.test(t);
+  // "approx.", "around", "estimated" mean exactly what "c." means, and were not
+  // being read that way: "approx. 4000 BC - 2000 BC" came back as the year 4000
+  // BC at exact-year precision, which the site then prints as a flat "4000 BC".
+  const approx = /~|\bc(?:a|irca)?\.?\s*\d/i.test(t) || /\b(?:approx|approximately|around|about|estimated?|probably)\b/i.test(t);
   // AD circa becomes a decade, BC circa a century.
   //
   // "c. 1712" means within a few years, and "1710s" says that. "c. 2500 BC"
@@ -171,11 +185,27 @@ function parseDate(raw) {
   const yearPrec = bcCirca ? 7 : approx ? 8 : 9;
   let m;
 
+  // A range is not an exact year, and saying so is the whole point of prec.
+  // Both range branches below used to return yearPrec, so "1800-1500 BC" was
+  // stored as the year 1800 BC at exact-year precision and rendered as a flat
+  // "1800 BC" -- a confidence the source never offered. 319 of the 4,229 dates
+  // in the first Americas harvest were ranges recorded this way.
+  //
+  // The returned year stays the earlier end (when building began); the span is
+  // what sets how loudly to hedge it.
+  const precForSpan = (span) => (span <= 25 ? 8 : span <= 250 ? 7 : 6);
+
   // "2500-1700 BC" and "between 200 and 100 BC" -- take the earlier end, which
   // is when it was built. The "and" form used to fall through to the single
   // -value branch below and return the LATER end, contradicting this rule.
-  if ((m = t.match(/(\d{1,5})\s*(?:–|—|-|to|and)\s*(\d{1,5})\s*(?:BCE?|BC)\b/i)))
-    return { year: -Math.max(+m[1], +m[2]), prec: yearPrec };
+  // The era marker is optional on the FIRST end because both spellings occur:
+  // "2500-1700 BC" and "4000 BC - 2000 BC". Without it the second spelling fell
+  // past this branch to the single-value one and kept only its earlier number,
+  // losing the span that says how uncertain it is.
+  if ((m = t.match(/(\d{1,5})\s*(?:BCE?|BC)?\s*(?:–|—|-|to|and)\s*(\d{1,5})\s*(?:BCE?|BC)\b/i))) {
+    const [lo, hi] = [Math.min(+m[1], +m[2]), Math.max(+m[1], +m[2])];
+    return { year: -hi, prec: Math.min(yearPrec, precForSpan(hi - lo)) };
+  }
 
   if ((m = t.match(/(\d{1,2})(?:st|nd|rd|th)\s+millennium\s+(?:BCE?|BC)\b/i)))
     return { year: -(+m[1] * 1000), prec: 6 };
@@ -183,6 +213,19 @@ function parseDate(raw) {
   // Hyphenated "5th-century BC" is very common and was matching nothing.
   if ((m = t.match(/(\d{1,2})(?:st|nd|rd|th)[-\s]centur(?:y|ies)\s+(?:BCE?|BC)\b/i)))
     return { year: -(+m[1] * 100), prec: 7 };
+  // The AD side had no range branch at all, so "0-499 AD" was read by the "79
+  // AD" branch below as the year 499 -- the LATER end, the opposite of the rule
+  // the BC branch follows, and at exact-year precision. Pinson Mounds and Old
+  // Stone Fort both came back as built in exactly AD 499.
+  //
+  // Guarded on bc so an era-first "BC 300-200" cannot land here, and requires
+  // hi > lo so an ISO date ("1980-01-01" -> 1980, 1) falls through instead of
+  // being read as a range running backwards.
+  if (!bc.test(t) && (m = t.match(/\b(\d{1,4})\s*(?:–|—|-|to|and)\s*(\d{1,4})\b/i))) {
+    const [lo, hi] = [+m[1], +m[2]];
+    if (hi > lo && hi <= 2026) return { year: Math.max(1, lo), prec: Math.min(yearPrec, precForSpan(hi - lo)) };
+  }
+
   // "AD 79" / "79 AD" / "79 CE" -- the AD branch below needs 3-4 digits, so the
   // whole of AD 1-99 was unreachable.
   if ((m = t.match(/\bAD\s*(\d{1,4})\b/i)) || (m = t.match(/\b(\d{1,4})\s*(?:AD|CE)\b/i))) {

@@ -19,11 +19,38 @@ const cases = [
   // --- wrong MAGNITUDE: comma grouping ---
   ["1,200 BC", -1200, 9],
   ["10,000 BC", -10000, 9],
-  ["2,000 - 1,500 BC", -2000, 9], // the Omori Katsuyama case, was -500
+  ["2,000 - 1,500 BC", -2000, 6], // the Omori Katsuyama case, was -500
 
   // --- documented rule: earlier end of a range ---
-  ["between 200 and 100 BC", -200, 9],
-  ["2500-1700 BC", -2500, 9],
+  //
+  // These three asserted prec 9 until the Americas harvest showed what that
+  // means downstream: a 500- or 800-year range printed as a flat "2000 BC", a
+  // confidence no source offered. The YEAR was never in question -- only how
+  // loudly to hedge it -- so the expectations move, not the parser's answer.
+  // Span sets the hedge: <=25y decade, <=250y century, wider millennium.
+  ["between 200 and 100 BC", -200, 7],
+  ["2500-1700 BC", -2500, 6],
+  ["1080-1100", 1080, 8],
+  ["536-600", 536, 7],
+  ["600-400 BCE", -600, 7],
+
+  // --- AD ranges had no branch at all and took the LATER end at prec 9 ---
+  ["0-499 AD", 1, 6], // Pinson Mounds, was AD 499 exactly
+  ["1200-1300", 1200, 7],
+
+  // --- "approx."/"around"/"estimated" mean what "c." means ---
+  ["approx. 4000 BC - 2000 BC", -4000, 6], // Mount Taylor, was -4000 prec 9
+  ["around 1850", 1850, 8],
+  ["estimated 1600", 1600, 8],
+
+  // --- an ISO date is not a range ---
+  ["1980-01-01", 1980, 9],
+
+  // --- a comma list is a build date plus later additions, not a range ---
+  ["1745, 1834-1835", 1745, 9],   // Kentland Farm, was dated to its 1834 addition
+  ["1778, 1939-1941", 1778, 9],   // Fort Roberdeau, was dated to its 1939 rebuild
+  ["1650-1699, 1700s", 1650, 7],
+  ["March 15, 1901", 1901, 9],    // first segment has no year: must not split
 
   // --- AD centuries: first year, never the future ---
   ["5th century AD", 401, 7],

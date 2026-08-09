@@ -163,7 +163,8 @@ function fillFacts(text) {
     .replace(/\{\{TOTAL_EVENTS\}\}/g, DATASET_FACTS.total ?? "")
     .replace(/\{\{FIRST_YEAR\}\}/g, DATASET_FACTS.first ?? "")
     .replace(/\{\{LAST_YEAR\}\}/g, DATASET_FACTS.last ?? "")
-    .replace(/\{\{APPROX_EVENTS\}\}/g, DATASET_FACTS.approx ?? "");
+    .replace(/\{\{APPROX_EVENTS\}\}/g, DATASET_FACTS.approx ?? "")
+    .replace(/\{\{INFOBOX_EVENTS\}\}/g, DATASET_FACTS.infobox ?? "");
 }
 
 function layout({ title, description, canonical, jsonLd, body, head = "", scripts = "" }) {
@@ -333,7 +334,17 @@ ${around.map((e) => eventCard(e, { showYear: true })).join("\n")}
   const approxBlock = approx.length
     ? `    <section class="approx-block">
       <h2>Dated to the wider period</h2>
-      <p class="section-note">Wikidata records ${approx.length === 1 ? "this entry" : `these ${approx.length.toLocaleString("en-US")} entries`} only to a century, decade or millennium rather than to a specific year. ${approx.length === 1 ? "It is" : "They are"} listed here because ${esc(label)} is where that broader date falls, not because ${approx.length === 1 ? "it is" : "they are"} known to have happened in ${esc(label)}.</p>
+      <p class="section-note">${
+        // Naming Wikidata here was true until infobox-dated events existed, and
+        // is exactly wrong for them: Wikidata records no date for those at all,
+        // which is why the date was read from a Wikipedia infobox instead. Say
+        // "the source" unless every entry in this block really is Wikidata's.
+        approx.every((e) => e.dateSource === "wikipedia-infobox")
+          ? "The source gives"
+          : approx.some((e) => e.dateSource === "wikipedia-infobox")
+            ? "The sources give"
+            : "Wikidata records"
+      } ${approx.length === 1 ? "this entry" : `these ${approx.length.toLocaleString("en-US")} entries`} only to a century, decade or millennium rather than to a specific year. ${approx.length === 1 ? "It is" : "They are"} listed here because ${esc(label)} is where that broader date falls, not because ${approx.length === 1 ? "it is" : "they are"} known to have happened in ${esc(label)}.</p>
 ${[...approxGroups.entries()]
   .sort((a, b) => a[1].prec - b[1].prec)
   .map(
@@ -560,17 +571,23 @@ async function main() {
   // Populated before any page is rendered, because layout() reads it.
   let totalEvents = 0;
   let approxEvents = 0;
+  let infoboxEvents = 0;
   for (const rows of byYear.values()) {
     totalEvents += rows.length;
     for (const e of rows) if (e.prec) approxEvents++;
+    // Counted from the data rather than written into the prose, because
+    // /attribution/ makes a licensing claim with this number in it and a
+    // hand-typed figure goes stale the first time a harvest is merged.
+    for (const e of rows) if (e.dateSource === "wikipedia-infobox") infoboxEvents++;
   }
   DATASET_FACTS = {
     total: totalEvents.toLocaleString("en-US"),
     approx: approxEvents.toLocaleString("en-US"),
+    infobox: infoboxEvents.toLocaleString("en-US"),
     first: yearLabel(years[0]),
     last: yearLabel(years[years.length - 1]),
   };
-  console.log(`Dataset: ${DATASET_FACTS.total} events, ${DATASET_FACTS.first} to ${DATASET_FACTS.last} (${DATASET_FACTS.approx} approximate-date)`);
+  console.log(`Dataset: ${DATASET_FACTS.total} events, ${DATASET_FACTS.first} to ${DATASET_FACTS.last} (${DATASET_FACTS.approx} approximate-date, ${DATASET_FACTS.infobox} infobox-dated)`);
   const total = years.reduce((s, y) => s + byYear.get(y).length, 0);
   if (total !== index.total) {
     throw new Error(`read ${total} events but index says ${index.total}`);
