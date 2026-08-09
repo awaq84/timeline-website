@@ -33,6 +33,16 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = path.join(__dirname, "..", "data", ".cache");
 const OUT_PATH = path.join(CACHE_DIR, "infobox-dates.json");
+// Resume state. The first Americas run lost 42 of its 96 discovery queries to
+// Wikidata 500s -- including Mexican archaeological sites, the single richest
+// source of pre-Columbian dates -- and retrying them meant repeating the 54 that
+// had worked and re-reading all 7,351 Wikipedia articles, about two hours to
+// recover six minutes of lost work. Both phases now record what they finished:
+//   discovery: which (type root, country) pairs returned, and what they held
+//   articles:  which QIDs have been read, whether or not a date was found
+// A failed pair simply isn't recorded, so the next run retries exactly the gaps.
+const DISCOVERY_PATH = path.join(CACHE_DIR, "infobox-discovery.json");
+const CHECKED_PATH = path.join(CACHE_DIR, "infobox-checked.json");
 const SPARQL = "https://query.wikidata.org/sparql";
 const WIKI_API = "https://en.wikipedia.org/w/api.php";
 const UA = "TimelineHistory/1.0 (https://github.com/awaq84/timeline-website)";
@@ -290,11 +300,29 @@ async function sparql(query, attempts = 4) {
 // the same endpoint answers in 0.27s. It is query cost, not availability. The
 // per-country shape is proven: it returned Mexico 279, Peru 552 and Bolivia 28
 // while the combined one was still failing.
+async function readJson(file, fallback) {
+  try {
+    return JSON.parse(await fs.readFile(file, "utf8"));
+  } catch {
+    return fallback;
+  }
+}
+
 async function undatedItems() {
   const out = new Map();
+  const cache = await readJson(DISCOVERY_PATH, {});
   const countries = COUNTRY_SET || [null];
+  let reused = 0;
+  let queried = 0;
+  let failed = 0;
   for (const root of TYPE_ROOTS) {
     for (const country of countries) {
+      const cacheKey = `${root}|${country || "world"}`;
+      if (cache[cacheKey]) {
+        for (const it of cache[cacheKey]) if (!out.has(it.qid)) out.set(it.qid, it);
+        reused++;
+        continue;
+      }
       const countryClause = country ? `?item wdt:P17 ${country} .` : "";
     const q = `SELECT ?item ?itemLabel ?article ?coord ?sl WHERE {
   ?item wdt:P31/wdt:P279* ${root} ; wdt:P625 ?coord ; wikibase:sitelinks ?sl .
@@ -308,27 +336,37 @@ async function undatedItems() {
 } LIMIT 4000`;
       try {
         const rows = await sparql(q);
+        const batch = [];
         for (const r of rows) {
           const qid = r.item.value.split("/").pop();
-          if (out.has(qid)) continue;
           const c = r.coord.value.match(/Point\(([-\d.]+) ([-\d.]+)\)/);
           if (!c) continue;
-          out.set(qid, {
+          const item = {
             qid,
             title: decodeURIComponent(r.article.value.split("/wiki/")[1]).replace(/_/g, " "),
             label: r.itemLabel?.value || "",
             lat: +c[2],
             lng: +c[1],
             sitelinks: +r.sl.value,
-          });
+          };
+          batch.push(item);
+          if (!out.has(qid)) out.set(qid, item);
         }
+        // Written per pair, not at the end, so a crash or a kill keeps every
+        // query that already succeeded. An empty result is still a completed
+        // query and must be recorded, or it is retried forever.
+        cache[cacheKey] = batch;
+        await fs.writeFile(DISCOVERY_PATH, JSON.stringify(cache));
+        queried++;
         if (rows.length) console.log(`  ${root} ${country || "world"}: ${rows.length} rows, ${out.size} unique`);
       } catch (err) {
-        console.warn(`  ${root} ${country || "world"}: ${err.message} -- skipped`);
+        failed++;
+        console.warn(`  ${root} ${country || "world"}: ${err.message} -- skipped (will retry next run)`);
       }
       await sleep(3000);
     }
   }
+  console.log(`\n  discovery: ${reused} pairs from cache, ${queried} queried, ${failed} failed`);
   return [...out.values()].sort((a, b) => b.sitelinks - a.sitelinks).slice(0, MAX_ITEMS);
 }
 
@@ -339,13 +377,23 @@ async function main() {
   const items = await undatedItems();
   console.log(`\n${items.length} candidates with an English article\n`);
 
-  const byTitle = new Map(items.map((i) => [i.title, i]));
+  // Articles already read on a previous run, whether or not they yielded a date.
+  // Without this the retry of a handful of failed discovery queries re-reads
+  // every article again -- 7,351 of them last time, for six minutes of new work.
+  const checkedBefore = new Set(await readJson(CHECKED_PATH, []));
+  const previous = await readJson(OUT_PATH, []);
+  const pending = items.filter((i) => !checkedBefore.has(i.qid));
+  console.log(
+    `  ${items.length} candidates, ${items.length - pending.length} already read, ${pending.length} to read\n`
+  );
+
+  const byTitle = new Map(pending.map((i) => [i.title, i]));
   const found = [];
   let checked = 0;
   let noDate = 0;
 
-  for (let i = 0; i < items.length; i += TITLES_PER_REQUEST) {
-    const batch = items.slice(i, i + TITLES_PER_REQUEST);
+  for (let i = 0; i < pending.length; i += TITLES_PER_REQUEST) {
+    const batch = pending.slice(i, i + TITLES_PER_REQUEST);
     const url = `${WIKI_API}?action=query&prop=revisions&rvprop=content&rvslots=main&titles=${encodeURIComponent(
       batch.map((b) => b.title).join("|")
     )}&format=json&formatversion=2`;
@@ -383,12 +431,19 @@ async function main() {
       else noDate++;
     }
 
-    if (i % 400 === 0) console.log(`  ${checked}/${items.length} checked, ${found.length} dated`);
+    if (i % 400 === 0) console.log(`  ${checked}/${pending.length} checked, ${found.length} dated`);
     await sleep(PAUSE_MS);
   }
 
-  found.sort((a, b) => a.year - b.year);
-  await fs.writeFile(OUT_PATH, JSON.stringify(found, null, 1));
+  // Merged with the previous harvest rather than replacing it: this run only
+  // read the articles the last one missed, so `found` alone is not the dataset.
+  const byQid = new Map(previous.map((p) => [p.qid, p]));
+  for (const f of found) byQid.set(f.qid, f);
+  const all = [...byQid.values()].sort((a, b) => a.year - b.year);
+  await fs.writeFile(OUT_PATH, JSON.stringify(all, null, 1));
+  for (const it of pending) checkedBefore.add(it.qid);
+  await fs.writeFile(CHECKED_PATH, JSON.stringify([...checkedBefore]));
+  console.log(`\n  harvest now holds ${all.length} dated items (${found.length} new this run)`);
 
   const bc = found.filter((f) => f.year < 0);
   console.log(`\n${checked} articles read`);
