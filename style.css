@@ -635,6 +635,63 @@ main {
   padding: 0 4px;
 }
 
+.year-jump {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.year-jump label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+#yearJumpInput {
+  width: 150px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+#yearJumpInput::placeholder {
+  color: var(--muted);
+}
+
+#yearJumpInput:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(41, 151, 255, 0.25);
+}
+
+/* .ghost-btn carries flex: 1 for the "Select all" / "Clear all" pair, which
+   share a row two-up and are meant to fill it. In this row that stretched Go to
+   348px and squeezed the status message to zero width. */
+.year-jump button {
+  flex: 0 0 auto;
+  padding: 9px 20px;
+}
+
+.year-jump-msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.year-jump-msg.is-error {
+  color: #ff9a8b;
+}
+
 .content-section {
   display: grid;
   grid-template-columns: 280px 1fr;

@@ -1213,6 +1213,112 @@ yearSlider.addEventListener("input", () => {
   renderAll();
 });
 
+// ---- Go to year ----
+//
+// The slider spans 12480 BC to 2026 across roughly 900 pixels. That is sixteen
+// years per pixel, so no amount of careful dragging lands on 1066 on purpose --
+// and since only 17 events fall before 3001 BC, the leftmost sixty per cent of
+// the track is nearly empty and drags across it overshoot wildly. This takes
+// what someone would actually type instead.
+//
+// A text input rather than <input type="number"> because the era matters: BC
+// years are negative internally but nobody types "-500". Both forms are
+// accepted, along with "500 BC", "500BC", "500 b.c.", "500 BCE", "AD 500" and
+// "1,200 BC".
+//
+// The dots and commas are stripped before anything else is matched, which is the
+// whole reason this is not a one-line regex. A \b(BCE?)\b tested against "B.C."
+// does not match -- the harvester shipped Ōmori Katsuyama, a 2000 BC site, as AD
+// 500 for exactly that reason -- and \d{1,4} stops dead at the comma in
+// "1,200 BC" and comes back with 200. A silently wrong sign is worse than a
+// rejected input, because the map will happily show you the wrong millennium
+// without ever looking broken.
+function parseYearInput(raw) {
+  const lowered = String(raw).trim().toLowerCase();
+  // A dot between two digits is a decimal, not era punctuation. Stripping it
+  // with the rest would turn "12.5" into the year 125 -- a plausible-looking
+  // answer to a question nobody asked.
+  if (/\d\.\d/.test(lowered)) return null;
+  const s = lowered
+    .replace(/[.,]/g, "")
+    .replace(/\s+/g, " ")
+    // "500 B. C." arrives here as "500 b c". Close the gaps between single
+    // letters so the era token is whole again before it is matched.
+    .replace(/\b([a-z])\s+(?=[a-z]\b)/g, "$1")
+    .trim();
+  if (!s) return null;
+  // \s* rather than \s+ so "500bc" parses; the era may also lead, as in "AD 500".
+  const m = s.match(/^(?:(ad|ce)\s*)?(-?)(\d{1,5})\s*(bce|bc|ce|ad)?$/);
+  if (!m) return null;
+  const [, leadEra, sign, digits, trailEra] = m;
+  const era = trailEra || leadEra || "";
+  // "-500 BC" and "AD 500 BC" are contradictions, not years. Guessing which half
+  // was meant is exactly the silent-wrong-sign failure this function exists to
+  // avoid, so refuse and let the message ask again.
+  if (era && sign === "-") return null;
+  if (leadEra && trailEra && leadEra !== trailEra) return null;
+  const year = Number(digits);
+  if (!Number.isFinite(year)) return null;
+  return era.startsWith("b") || sign === "-" ? -year : year;
+}
+
+const yearJumpForm = document.getElementById("yearJump");
+const yearJumpInput = document.getElementById("yearJumpInput");
+const yearJumpMsg = document.getElementById("yearJumpMsg");
+
+function stopPlayback() {
+  if (!state.playing) return;
+  state.playing = false;
+  clearInterval(state.playTimer);
+  playBtn.querySelector(".icon-play").removeAttribute("hidden");
+  playBtn.querySelector(".icon-pause").setAttribute("hidden", "");
+}
+
+yearJumpForm.addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const wanted = parseYearInput(yearJumpInput.value);
+  if (wanted === null) {
+    yearJumpMsg.textContent = "Try 1969, 500 BC, or AD 800.";
+    yearJumpMsg.classList.add("is-error");
+    return;
+  }
+  const { minYear, maxYear } = INDEX;
+  const year = Math.min(Math.max(wanted, minYear), maxYear);
+  yearJumpMsg.classList.remove("is-error");
+  yearJumpMsg.textContent =
+    year === wanted
+      ? ""
+      : `The timeline runs ${formatYear(minYear)} to ${formatYear(maxYear)} — showing ${formatYear(year)}.`;
+
+  // An explicit jump beats auto-play; leaving the timer running would step off
+  // the requested year a second after arriving at it.
+  stopPlayback();
+  state.year = year;
+  yearSlider.value = year;
+  renderAll();
+  document.getElementById("map").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+// Enter is the obvious way to use a box like this, and a form with one text
+// input and a submit button is supposed to submit on Enter without any help.
+// It did not when driven through the browser tools -- a submit listener counted
+// zero events from a real keypress -- and rather than ship the most natural
+// interaction on the assumption that the automation was at fault, this makes it
+// explicit. preventDefault() first, so if implicit submission does fire here for
+// real users the form still submits exactly once.
+yearJumpInput.addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  yearJumpForm.requestSubmit();
+});
+
+// Clear a stale complaint as soon as the input is touched again, so the error
+// does not sit under a box that now reads fine.
+yearJumpInput.addEventListener("input", () => {
+  yearJumpMsg.textContent = "";
+  yearJumpMsg.classList.remove("is-error");
+});
+
 stepBackBtn.addEventListener("click", () => {
   const years = getEventYears();
   const prev = [...years].reverse().find((y) => y < state.year);

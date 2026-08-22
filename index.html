@@ -123,6 +123,13 @@
       </button>
     </div>
     <div class="timeline-labels"></div>
+    <form class="year-jump" id="yearJump">
+      <label for="yearJumpInput">Go to year</label>
+      <input id="yearJumpInput" type="text" inputmode="text" autocomplete="off" spellcheck="false"
+             placeholder="1969 or 500 BC" aria-describedby="yearJumpMsg">
+      <button type="submit" class="ghost-btn">Go</button>
+      <span class="year-jump-msg" id="yearJumpMsg" role="status" aria-live="polite"></span>
+    </form>
   </section>
 
   <section class="content-section">
