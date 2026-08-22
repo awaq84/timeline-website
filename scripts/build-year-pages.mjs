@@ -277,7 +277,7 @@ function eventCard(e, { showYear = false } = {}) {
   return `      <li class="event-card" style="border-left-color:${colour}">
         <h3>${esc(e.title)}</h3>
         <p class="event-meta">${when}<span class="cat-dot" style="background:${colour}"></span>${esc(e.category)}${place}</p>
-        <p class="event-summary">${esc(e.summary)}</p>
+        ${e.summary ? `<p class="event-summary">${esc(e.summary)}</p>` : ""}
         <a class="event-link" href="${esc(e.wiki)}" rel="noopener">${linkText} &rarr;</a>
       </li>`;
 }

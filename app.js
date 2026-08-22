@@ -407,7 +407,7 @@ function renderEventsList(currentEvents) {
     card.innerHTML = `
       <h3>${e.title}</h3>
       <div class="event-meta"><span class="event-meta-swatch"></span>${e.category}${e.location ? ` &middot; ${e.location}` : ""}${approxTag}</div>
-      <p class="event-summary">${e.summary}</p>
+      ${e.summary ? `<p class="event-summary">${e.summary}</p>` : ""}
       <a href="${e.wiki}" target="_blank" rel="noopener noreferrer">${isWikidata ? "View source on Wikidata" : "Read more on Wikipedia"} &rarr;</a>
     `;
     // Same glyph as the map marker and the filter legend, so a category is
@@ -941,7 +941,7 @@ function tooltipMarkup(d, pinned) {
       <span class="tooltip-swatch" id="tooltipSwatch"></span>
       <span>${precisionLabel(d) || formatYear(d.year)} &middot; ${d.category}${d.location ? ` &middot; ${d.location}` : ""}</span>
     </div>
-    <p class="tooltip-summary">${d.summary}</p>
+    ${d.summary ? `<p class="tooltip-summary">${d.summary}</p>` : ""}
     ${
       pinned
         ? `<a class="tooltip-link" href="${d.wiki}" target="_blank" rel="noopener noreferrer">${linkText} &rarr;</a>

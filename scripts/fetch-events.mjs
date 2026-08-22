@@ -1123,7 +1123,15 @@ function toEvent(binding, category, opts = {}) {
   // The raw Wikidata description is passed through to custom summary builders
   // so they can keep the biographical detail ("Indian philosopher and founder
   // of Buddhism") instead of throwing it away for a bare "X was born." line.
-  const summary = opts.summary ? opts.summary(rawTitle, year, location, desc) : desc || `${title} (${category}).`;
+  // No fabricated fallback. This used to end in `desc || \`${title} (${category}).\``,
+  // which invented a description whenever Wikidata had none -- and Wikidata has
+  // none for 5,341 of these. The result was rendered on the map and every year
+  // page as though it were real text: "Mulisko Gaina (Architecture &
+  // Engineering).", "Aslankaya (Religion & Belief Systems)." It carries no
+  // information the reader cannot already see in the title and the category
+  // label directly above it, and it reads like a bug. An empty summary is
+  // honest, and the three render sites now omit the element entirely.
+  const summary = opts.summary ? opts.summary(rawTitle, year, location, desc) : desc;
 
   // Only recorded when the date is vaguer than a year (6 millennium, 7 century,
   // 8 decade). Year, month and day precision all pin the year we store, so
