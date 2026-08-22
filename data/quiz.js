@@ -612,6 +612,7 @@ const QUIZ_EVENTS = [
 {"y":732,"q":"Shore Temple was founded","c":6,"s":"shore temple","f":21,"w":"Shore_Temple","d":"Indian granite block building"},
 {"y":732,"q":"the Battle of the River Garonne was fought","c":1,"s":"battle of the river garonne","f":13,"w":"Battle_of_the_River_Garonne"},
 {"y":732,"q":"the Battle of Tours was fought","c":0,"s":"battle of tours","f":68,"w":"Battle_of_Tours","d":"Frankish forces under Charles Martel halt an Umayyad advance into Western Europe."},
+{"y":732,"q":"Tikal Temple I was founded","c":6,"s":"tikal temple i","f":13,"w":"Tikal_Temple_I","d":"Ancient site"},
 {"y":734,"q":"the Battle of the Boarn was fought","c":1,"s":"battle of the boarn","f":15,"w":"Battle_of_the_Boarn"},
 {"y":739,"q":"the Berber (Amazigh) Revolt began","c":9,"s":"berber amazigh revolt","f":23,"w":"Berber_Revolt","d":"The Amazigh (berber) revolt during the early caliphate"},
 {"y":740,"q":"the Battle of Akroinon was fought","c":1,"s":"battle of akroinon","f":25,"w":"Battle_of_Akroinon"},
