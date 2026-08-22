@@ -57,10 +57,29 @@ const MIN_FAME_OTHER = Number(process.env.QUIZ_MIN_FAME_OTHER || 12);
 const MIN_FAME_PEOPLE = Number(process.env.QUIZ_MIN_FAME_PEOPLE || 90);
 
 // Wikipedia is densest on the last two centuries, and without a ceiling the pool
-// inherits that: every question would land after 1800. This trims the crowded
+// inherits that: uncapped, 41% of it lands after 1800. This trims the crowded
 // centuries rather than padding the empty ones, keeping the sparse eras
 // proportionally present instead of pretending they are as well recorded.
-const MAX_PER_CENTURY = Number(process.env.QUIZ_MAX_PER_CENTURY || 260);
+//
+// 600 rather than the 260 this used to be. That number was set when the only
+// candidates were title-phrasable, high-fame events and it was the largest
+// single loss in the build -- 11,691 of 15,943 candidates discarded, with eleven
+// consecutive centuries pegged flat against it.
+//
+// Raising it costs less than it looks. BC and the first millennium do not move
+// at all (520 and 872 events at every setting tried, from 260 to 1400) because
+// those centuries have nothing more to give, so the ceiling is purely a dial on
+// how modern the pool is allowed to get:
+//
+//   cap    pool   L1 puzzles   1800+
+//   260   4,252         956     18%
+//   400   5,667         991     21%
+//   600   6,996       1,011     25%
+//   900   8,309       1,014     32%
+//
+// 600 is the knee. 900 buys 1,313 more events for three more level 1 puzzles
+// and seven more points of modern skew, which is not a trade worth making.
+const MAX_PER_CENTURY = Number(process.env.QUIZ_MAX_PER_CENTURY || 600);
 
 // How well known a war or period must be before it can vouch for an event
 // nobody has heard of, and how many events any one of them may sponsor.
@@ -114,13 +133,25 @@ const SPORTS =
 // them away -- "Association football club in Turin, Italy" -- so this is checked
 // against that as well as the title. 67 of them are in the dataset.
 const SPORTS_CLUB =
-  /\b(?:football|associaton football|association football|basketball|ice hockey|handball|baseball|rugby|cricket|volleyball|futsal)\s+(?:club|team)\b|\bsports?\s+club\b|(?:^|\s)(?:F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|H\.?C\.?|B\.?C\.?)(?:\s|$)/i;
+  /\b(?:football|association football|basketball|ice hockey|handball|baseball|rugby|cricket|volleyball|futsal)\s+(?:club|team)s?\b/i;
 
-const isSport = (statement, description) =>
-  SPORTS.test(statement) ||
-  SPORTS.test(description || "") ||
-  SPORTS_CLUB.test(statement) ||
-  SPORTS_CLUB.test(description || "");
+// The sport itself, named anywhere in the title or the description. Raising the
+// per-century ceiling surfaced two that neither pattern above caught, because
+// neither names a fixture and neither IS a club: "City Football Group"
+// ("Holding company that administers association football clubs") and "Red Bull
+// Powertrains" ("Formula One power unit manufacturer"). Both are companies, and
+// both are unmistakably sport.
+const SPORT_WORD =
+  /\b(?:football|soccer|basketball|baseball|ice hockey|rugby|cricket|tennis|golf|motorsport|Formula One|Formula 1|NASCAR|athletics|boxing|wrestling|cycling|swimming|handball|volleyball|futsal)\b/i;
+
+const isSport = (statement, description) => {
+  const d = description || "";
+  return (
+    SPORTS.test(statement) || SPORTS.test(d) ||
+    SPORTS_CLUB.test(statement) || SPORTS_CLUB.test(d) ||
+    SPORT_WORD.test(statement) || SPORT_WORD.test(d)
+  );
+};
 
 // Stands in for the Infinity the hand-written phrasings carry through the
 // candidate list. They are the moon landing, Pearl Harbor, the fall of the
