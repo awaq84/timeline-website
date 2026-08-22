@@ -325,12 +325,51 @@ async function main() {
   //
   // Build order is fetch -> merge -> dedupe -> enrich-sitelinks -> build-quiz,
   // and nothing enforces it. This at least makes a skipped step loud.
+  // --- Which polities may be asked about ---
+  //
+  // "Empires & Countries" used to be barred entirely, because Wikidata inception
+  // dates give "United States founded, 1784" and "France founded, 1804" -- and
+  // grading someone wrong for answering 1776 is indefensible. That reasoning is
+  // sound for currently-existing sovereign states and wrong for everything else
+  // in the category, which is 5,249 rows of Troy, Tyre, Phoenicia, the Xia
+  // dynasty, the Kingdom of Kush and the Ottoman Empire.
+  //
+  // Two tests separate them, and both are structural rather than a list of names:
+  //
+  //  1. A title claiming more than one year is contradictory on its face. The
+  //     dataset holds "Italy founded" at 476, 1861 AND 1946, and "France founded"
+  //     at both 481 and 1804. Whatever the right answer is, this data does not
+  //     know it, so the subject is dropped.
+  //
+  //  2. A founding is only asked about when the same polity also has a recorded
+  //     dissolution. A state that ended is a historical one with a settled date;
+  //     a founding with no end is usually a country that still exists, which is
+  //     exactly where Wikidata's legal inception fights the popular answer.
+  //     "Kingdom of Great Britain founded, 1707" is admitted because it also
+  //     dissolved in 1801. "United States founded" is not.
+  //
+  // Dissolutions are admitted on their own: the end of a polity is a definite
+  // dated event, and nothing still-existing has one.
+  const polityYears = new Map();
+  const polityEnded = new Set();
+  for (const e of events) {
+    if (e.category !== "Empires & Countries" || e.prec) continue;
+    if (!polityYears.has(e.title)) polityYears.set(e.title, new Set());
+    polityYears.get(e.title).add(e.year);
+    if (/\s+dissolved$/.test(e.title)) polityEnded.add(e.title.replace(/\s+dissolved$/, ""));
+  }
+  const polityAllowed = (e) => {
+    if (polityYears.get(e.title)?.size !== 1) return false;
+    if (/\s+dissolved$/.test(e.title)) return true;
+    return polityEnded.has(e.title.replace(/\s+founded$/, ""));
+  };
+
   const rejected = { approx: 0, country: 0, unphrasable: 0, obscure: 0, dated: 0, uncached: 0, bio: 0, dull: 0 };
   const candidates = [];
 
   for (const e of events) {
     if (e.prec) { rejected.approx++; continue; }
-    if (e.category === "Empires & Countries") { rejected.country++; continue; }
+    if (e.category === "Empires & Countries" && !polityAllowed(e)) { rejected.country++; continue; }
 
     // The hand-written phrasings come first and are exempt from everything
     // below. They cover the moon landing, Pearl Harbor, the fall of the Berlin
@@ -375,7 +414,7 @@ async function main() {
 
   console.log(`${events.length.toLocaleString("en-US")} events`);
   console.log(`  dropped ${rejected.approx.toLocaleString("en-US")} approximate-date`);
-  console.log(`  dropped ${rejected.country.toLocaleString("en-US")} Empires & Countries`);
+  console.log(`  dropped ${rejected.country.toLocaleString("en-US")} polities with a contested or open-ended founding`);
   console.log(`  dropped ${rejected.unphrasable.toLocaleString("en-US")} whose title states no event`);
   console.log(`  dropped ${rejected.dated.toLocaleString("en-US")} whose statement contains a year`);
   console.log(`  dropped ${rejected.bio.toLocaleString("en-US")} births and deaths`);
