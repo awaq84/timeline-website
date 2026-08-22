@@ -28,6 +28,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { articleTitleFromWiki } from "./wiki-title.mjs";
 import { HAND_WRITTEN, questionFor } from "./event-phrasing.mjs";
+import { isBanned } from "./content-bans.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_PATH = path.join(__dirname, "..", "data", "events.js");
@@ -93,10 +94,19 @@ async function main() {
   const byTitle = new Map();
   for (const e of events) if (!byTitle.has(e.title)) byTitle.set(e.title, e);
 
+  // The same content bans the quiz applies, from the one shared file. This panel
+  // shipped 100 university foundings -- "Charles University was founded", "the
+  // University of Oxford was founded" -- long after the quiz stopped showing any,
+  // because the rules lived inside build-quiz.mjs and nothing here imported them.
+  let banned = 0;
   for (const [title, question] of Object.entries(HAND_WRITTEN)) {
     const e = byTitle.get(title);
     if (!e) {
       console.warn(`  WARN hand-written prompt has no matching event: "${title}"`);
+      continue;
+    }
+    if (isBanned({ statement: question, title: e.title, description: e.summary || "" })) {
+      banned++;
       continue;
     }
     chosen.push(promptFor(e, question));
@@ -122,11 +132,15 @@ async function main() {
     const question = questionFor(e.title, e.category);
     if (!question) continue;
     phrasable++;
+    if (isBanned({ statement: question, title: e.title, description: e.summary || "" })) {
+      banned++;
+      continue;
+    }
     const fame = fameOf(e);
     if (fame < MIN_SITELINKS) continue;
     candidates.push({ event: e, question, category: e.category, year: e.year, fame });
   }
-  console.log(`${phrasable} phrasable titles -> ${candidates.length} above ${MIN_SITELINKS} sitelinks (${vague} skipped for an imprecise date)`);
+  console.log(`${phrasable} phrasable titles -> ${candidates.length} above ${MIN_SITELINKS} sitelinks (${vague} skipped for an imprecise date, ${banned} banned by content rules)`);
 
   // Most famous first, then thinned by category and century so the pool stays
   // varied rather than 200 modern celebrities.

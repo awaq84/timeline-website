@@ -45,6 +45,7 @@ import { fileURLToPath } from "node:url";
 import { articleTitleFromWiki } from "./wiki-title.mjs";
 import { HAND_WRITTEN, questionFor } from "./event-phrasing.mjs";
 import { contextName } from "./quiz-context.mjs";
+import { BIO_TITLE, isBanned, isSport } from "./content-bans.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_PATH = path.join(__dirname, "..", "data", "events.js");
@@ -85,73 +86,6 @@ const MAX_PER_CENTURY = Number(process.env.QUIZ_MAX_PER_CENTURY || 600);
 // nobody has heard of, and how many events any one of them may sponsor.
 const MIN_CONTEXT_FAME = Number(process.env.QUIZ_MIN_CONTEXT_FAME || 40);
 const CONTEXT_QUOTA = Number(process.env.QUIZ_CONTEXT_QUOTA || 40);
-
-// --- Excluded question shapes ---
-//
-// Three kinds of statement are barred outright. All three are phraseable, dated,
-// famous enough and otherwise perfectly valid -- they are excluded because they
-// make bad questions, not bad data, and they stay everywhere else on the site.
-
-// "X was born" / "X died". The title suffix, not the finished statement: these
-// are the same two words the phrasing rules and subjectKey() key on, so matching
-// here cannot drift away from what the phrasing actually produces.
-const BIO_TITLE = /\s+(born|died)$/i;
-
-// Universities and colleges. Deliberately not Institute, Academy, Observatory,
-// Museum or Hospital, which the same phrasing rule also sends to "was founded":
-// those are 17 entries including MIT and the Royal Observatory, and the request
-// was about university foundings.
-const FOUNDED_SCHOOL = /\b(?:Universit(?:y|ies|é|ät|à|a|ad|eit|ä)|College|Polytechnic)\b.*\bwas founded$/i;
-
-// Geographical discoveries. 62 of the 69 "was discovered" statements were
-// islands and the rest caves -- "Coche Island was discovered", "Fingal's Cave
-// was discovered" -- which ask which voyage happened to sight a rock, not
-// anything about history. The feature list is broader than what the data
-// currently contains, so a future harvest cannot reintroduce the same question
-// shape through a landform this never saw.
-//
-// Tombs, hoards, fossils and meteorites stay: "Tutankhamun's tomb was
-// discovered" is an event people know, and it is not a geographical discovery.
-const DISCOVERED_LANDMASS =
-  /\b(?:Islands?|Isles?|Atolls?|Reefs?|Caves?|Rocks?|Skerry|Skerries|Mountains?|Peaks?|Lakes?|Rivers?|Bays?|Straits?|Capes?|Glaciers?|Deserts?|Falls|Springs?|Peninsulas?|Archipelagos?|Seas?|Gulfs?|Fjords?|Volcanoes?)\b.*\bwas discovered$/i;
-
-// Sporting fixtures and sports venues. Kept separate from the phrasing module's
-// IS_FIXTURE, which only stops the bare-name fallback inventing new ones: this
-// bars them however they were phrased, including by the title rules that put
-// eighteen of them in the pool -- Wimbledon, the US and French Opens, the Six
-// Nations, seven Formula One Grands Prix.
-//
-// Sport only, not the whole "Sports & Entertainment" category. The Globe Theatre
-// opening in 1599, the Bolshoi in 1776 and the Sydney Opera House in 1973 are
-// filed there too, and none of them is a sports event.
-const SPORTS =
-  /\b(?:Grand Prix|Olympics?|Olympic Games|Olympiad|Games|Championships?|Cup|Open|Tournament|League|Derby|Regatta|Masters|Stadium|Arena|Velodrome|Racecourse|Racetrack|Ballpark)\b/i;
-
-// Sports clubs, which the pattern above does not reach: "Juventus FC was
-// founded" and "1. FC Slovácko was founded" are filed under Economy & Trade as
-// companies, and their titles name no fixture. The description is what gives
-// them away -- "Association football club in Turin, Italy" -- so this is checked
-// against that as well as the title. 67 of them are in the dataset.
-const SPORTS_CLUB =
-  /\b(?:football|association football|basketball|ice hockey|handball|baseball|rugby|cricket|volleyball|futsal)\s+(?:club|team)s?\b/i;
-
-// The sport itself, named anywhere in the title or the description. Raising the
-// per-century ceiling surfaced two that neither pattern above caught, because
-// neither names a fixture and neither IS a club: "City Football Group"
-// ("Holding company that administers association football clubs") and "Red Bull
-// Powertrains" ("Formula One power unit manufacturer"). Both are companies, and
-// both are unmistakably sport.
-const SPORT_WORD =
-  /\b(?:football|soccer|basketball|baseball|ice hockey|rugby|cricket|tennis|golf|motorsport|Formula One|Formula 1|NASCAR|athletics|boxing|wrestling|cycling|swimming|handball|volleyball|futsal)\b/i;
-
-const isSport = (statement, description) => {
-  const d = description || "";
-  return (
-    SPORTS.test(statement) || SPORTS.test(d) ||
-    SPORTS_CLUB.test(statement) || SPORTS_CLUB.test(d) ||
-    SPORT_WORD.test(statement) || SPORT_WORD.test(d)
-  );
-};
 
 // Stands in for the Infinity the hand-written phrasings carry through the
 // candidate list. They are the moon landing, Pearl Harbor, the fall of the
@@ -519,8 +453,9 @@ async function main() {
     // statement is the only place the distinction exists. assertNoneRemain()
     // below re-checks the built pool so a phrasing change cannot quietly let
     // them back in.
-    if (FOUNDED_SCHOOL.test(q) || DISCOVERED_LANDMASS.test(q)) { rejected.dull++; continue; }
-    if (isSport(q, e.summary)) { rejected.sport++; continue; }
+    const banned = isBanned({ statement: q, description: e.summary || "" });
+    if (banned === "sport") { rejected.sport++; continue; }
+    if (banned) { rejected.dull++; continue; }
     const fame = fameOf(e);
     if (fame === null) { rejected.uncached++; continue; }
     if (fame < (e.category === "People" ? MIN_FAME_PEOPLE : MIN_FAME_OTHER)) {
@@ -624,27 +559,20 @@ async function main() {
 
   pool.sort((a, b) => a.y - b.y || a.q.localeCompare(b.q));
 
-  // The three exclusions are enforced on the way in -- births and deaths on the
-  // title, the other two on the statement -- so this re-checks the finished pool
-  // against what a player would actually read. It is not belt-and-braces for its
-  // own sake: two of the three match on text that questionFor() generates, and a
-  // new phrasing rule for, say, "was established" would route universities
-  // straight past FOUNDED_SCHOOL without anything failing. Fail the build loudly
-  // instead of shipping a quiz that quietly asks the questions again.
-  const barred = [
-    ["births and deaths", /\b(?:was born|died)$/i],
-    ["university foundings", FOUNDED_SCHOOL],
-    ["land mass discoveries", DISCOVERED_LANDMASS],
-  ];
-  let leaked = false;
-  for (const [what, re] of barred) {
-    const hits = pool.filter((p) => re.test(p.q));
-    if (!hits.length) continue;
-    leaked = true;
-    console.error(`\n${hits.length} ${what} reached the pool despite being excluded. First few:`);
-    for (const h of hits.slice(0, 5)) console.error(`  ${h.y}  ${h.q}`);
+  // The bans are enforced on the way in; this re-checks the finished pool against
+  // what a player would actually read. Not belt-and-braces for its own sake: most
+  // of them match on text that questionFor() generates, so a new phrasing rule
+  // for, say, "was established" would route universities straight past the ban
+  // without anything failing. Fail the build loudly rather than ship a quiz that
+  // quietly asks the question again.
+  const leaked = [];
+  for (const p of pool) {
+    const why = isBanned({ statement: p.q, description: p.d || "" });
+    if (why) leaked.push({ why, p });
   }
-  if (leaked) {
+  if (leaked.length) {
+    console.error(`\n${leaked.length} banned entries reached the pool. First few:`);
+    for (const { why, p } of leaked.slice(0, 8)) console.error(`  [${why}] ${p.y}  ${p.q}`);
     console.error("\nA phrasing rule probably changed. Fix the pattern or the rule; not writing data/quiz.js.");
     process.exit(1);
   }
