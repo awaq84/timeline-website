@@ -107,6 +107,56 @@ function formatYear(y) {
   return y < 0 ? `${Math.abs(y)} BC` : `${y}`;
 }
 
+// ---- Timeline scale ----
+//
+// The slider used to map position to year linearly, which spent 82.6% of the
+// track on 0.58% of the events: 919 events lie before 500 BC, spread over
+// 11,980 years, while the other 158,174 were crushed into the remaining 17.4%.
+// A pixel near the right-hand end was worth sixteen years, so the entire
+// twentieth century sat inside about seven pixels.
+//
+// So the track is now piecewise. Everything from 500 BC onward gets exactly one
+// slider position per year -- arrow keys step a single year, and the dense part
+// of history is where nearly all the track goes. The thin pre-500 BC stretch is
+// compressed into a tenth of the width, which is still far more room than its
+// share of the events would justify, because a timeline that visibly reaches
+// back to 12480 BC is worth more than the pixels it costs.
+//
+// Positions are integers because that is what <input type="range"> steps in.
+// state.year stays the source of truth; the slider is only a view of it, so a
+// rounded position never feeds back into the year.
+const SCALE = { min: -500, max: 2026, split: -500, sparsePositions: 0, positions: 1 };
+
+// Below this year the data is too thin to deserve linear space. 500 BC is where
+// the dataset stops being sparse: 919 events before it, 158,174 after.
+const SCALE_SPLIT_YEAR = -500;
+// Share of the track given to everything before the split.
+const SPARSE_TRACK_SHARE = 0.1;
+
+function buildTimelineScale(minYear, maxYear) {
+  SCALE.min = minYear;
+  SCALE.max = maxYear;
+  SCALE.split = Math.max(minYear, Math.min(SCALE_SPLIT_YEAR, maxYear));
+  const densePositions = Math.max(1, SCALE.max - SCALE.split);
+  // No sparse region at all when the dataset starts after the split, which keeps
+  // this correct if the earliest event ever moves forward.
+  SCALE.sparsePositions =
+    SCALE.split > minYear ? Math.max(1, Math.round((densePositions * SPARSE_TRACK_SHARE) / (1 - SPARSE_TRACK_SHARE))) : 0;
+  SCALE.positions = SCALE.sparsePositions + densePositions;
+}
+
+function posToYear(pos) {
+  const p = Math.min(Math.max(Math.round(pos), 0), SCALE.positions);
+  if (p >= SCALE.sparsePositions) return SCALE.split + (p - SCALE.sparsePositions);
+  return Math.round(SCALE.min + ((SCALE.split - SCALE.min) * p) / SCALE.sparsePositions);
+}
+
+function yearToPos(year) {
+  const y = Math.min(Math.max(year, SCALE.min), SCALE.max);
+  if (y >= SCALE.split) return SCALE.sparsePositions + (y - SCALE.split);
+  return Math.round(((y - SCALE.min) / (SCALE.split - SCALE.min)) * SCALE.sparsePositions);
+}
+
 // An event carries `prec` only when Wikidata's own date is vaguer than a year:
 // 6 millennium, 7 century, 8 decade. Wikidata renders such a date as a concrete
 // January 1st, so "12th century" reaches us as 1101 or 1150 depending on the
@@ -1173,7 +1223,7 @@ function jumpToEvent(event) {
   state.activeCategories.add(event.category);
   buildCategoryFilters();
   state.year = event.year;
-  yearSlider.value = event.year;
+  yearSlider.value = yearToPos(event.year);
 
   // Hand the spotlight to the render rather than applying it here. Jumping to a
   // distant year usually means fetching that era's chunk, so the marker won't
@@ -1209,7 +1259,7 @@ function clearSpotlight() {
 // ---- Timeline controls ----
 
 yearSlider.addEventListener("input", () => {
-  state.year = Number(yearSlider.value);
+  state.year = posToYear(Number(yearSlider.value));
   renderAll();
 });
 
@@ -1294,7 +1344,7 @@ yearJumpForm.addEventListener("submit", (ev) => {
   // the requested year a second after arriving at it.
   stopPlayback();
   state.year = year;
-  yearSlider.value = year;
+  yearSlider.value = yearToPos(year);
   renderAll();
   document.getElementById("map").scrollIntoView({ behavior: "smooth", block: "center" });
 });
@@ -1324,7 +1374,7 @@ stepBackBtn.addEventListener("click", () => {
   const prev = [...years].reverse().find((y) => y < state.year);
   if (prev !== undefined) {
     state.year = prev;
-    yearSlider.value = prev;
+    yearSlider.value = yearToPos(prev);
     renderAll();
   }
 });
@@ -1334,7 +1384,7 @@ stepForwardBtn.addEventListener("click", () => {
   const next = years.find((y) => y > state.year);
   if (next !== undefined) {
     state.year = next;
-    yearSlider.value = next;
+    yearSlider.value = yearToPos(next);
     renderAll();
   }
 });
@@ -1352,7 +1402,7 @@ playBtn.addEventListener("click", () => {
       const next = years.find((y) => y > state.year);
       if (next !== undefined) {
         state.year = next;
-        yearSlider.value = next;
+        yearSlider.value = yearToPos(next);
         renderAll();
       } else {
         state.playing = false;
@@ -1397,19 +1447,27 @@ function initTimelineRange() {
   const urlYear = yearFromUrl();
   if (urlYear !== null) state.year = urlYear;
 
-  yearSlider.min = minYear;
-  yearSlider.max = maxYear;
+  buildTimelineScale(minYear, maxYear);
+  yearSlider.min = 0;
+  yearSlider.max = SCALE.positions;
   if (state.year < minYear || state.year > maxYear) {
     state.year = Math.min(Math.max(state.year, minYear), maxYear);
   }
-  yearSlider.value = state.year;
+  yearSlider.value = yearToPos(state.year);
+
+  // The compressed stretch is shaded differently so the change of scale is
+  // visible rather than something you have to infer from the labels.
+  yearSlider.style.setProperty("--split", `${(SCALE.sparsePositions / SCALE.positions) * 100}%`);
 
   const timelineLabelsEl = document.querySelector(".timeline-labels");
   if (timelineLabelsEl) {
     const stops = 7;
     timelineLabelsEl.innerHTML = "";
     for (let i = 0; i < stops; i++) {
-      const y = Math.round(minYear + ((maxYear - minYear) * i) / (stops - 1));
+      // Stops are spaced evenly along the TRACK and then converted to years, so
+      // they report where the scale actually puts things. Spacing them evenly in
+      // years would print a ruler that disagrees with the thumb underneath it.
+      const y = posToYear(Math.round((SCALE.positions * i) / (stops - 1)));
       const span = document.createElement("span");
       span.textContent = formatYear(y);
       timelineLabelsEl.appendChild(span);

@@ -555,7 +555,19 @@ main {
   appearance: none;
   height: 4px;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  /* --split is set in initTimelineRange() to where the compressed pre-500 BC
+     stretch ends. Shading it apart from the rest makes the change of scale
+     something you can see, rather than something you deduce from the labels
+     jumping by 11,000 years and then by 500. Falls back to 0% so the track is a
+     plain accent gradient if the property is never set. */
+  --split: 0%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.18) 0,
+    rgba(255, 255, 255, 0.18) var(--split),
+    var(--accent) var(--split),
+    var(--accent-2) 100%
+  );
   outline: none;
 }
 
