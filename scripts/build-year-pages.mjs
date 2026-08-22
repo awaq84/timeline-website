@@ -20,6 +20,7 @@
 // Usage:  node scripts/build-year-pages.mjs
 
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { STATIC_PAGES } from "./static-pages.mjs";
@@ -158,13 +159,33 @@ const listPhrase = (items) =>
 // the events actually loaded, so they cannot go stale again.
 let DATASET_FACTS = {};
 
+// Pulls the real pool size and level-1 fame floor out of data/quiz.js. Returns
+// empty strings rather than throwing if the quiz has not been built, so a
+// year-pages run is never blocked by it -- but a missing number is visible in
+// the page, which is the point.
+function quizFacts() {
+  try {
+    const code = fsSync.readFileSync(path.join(DATA_DIR, "quiz.js"), "utf8");
+    const { QUIZ_EVENTS, QUIZ_LEVELS } = new Function(code + "\nreturn { QUIZ_EVENTS, QUIZ_LEVELS };")();
+    return {
+      quizPool: QUIZ_EVENTS.length.toLocaleString("en-US"),
+      quizL1Fame: String(QUIZ_LEVELS[0].minFame),
+    };
+  } catch {
+    console.warn("  could not read data/quiz.js -- quiz numbers on the quiz page will be blank");
+    return { quizPool: "", quizL1Fame: "" };
+  }
+}
+
 function fillFacts(text) {
   return String(text)
     .replace(/\{\{TOTAL_EVENTS\}\}/g, DATASET_FACTS.total ?? "")
     .replace(/\{\{FIRST_YEAR\}\}/g, DATASET_FACTS.first ?? "")
     .replace(/\{\{LAST_YEAR\}\}/g, DATASET_FACTS.last ?? "")
     .replace(/\{\{APPROX_EVENTS\}\}/g, DATASET_FACTS.approx ?? "")
-    .replace(/\{\{INFOBOX_EVENTS\}\}/g, DATASET_FACTS.infobox ?? "");
+    .replace(/\{\{INFOBOX_EVENTS\}\}/g, DATASET_FACTS.infobox ?? "")
+    .replace(/\{\{QUIZ_POOL\}\}/g, DATASET_FACTS.quizPool ?? "")
+    .replace(/\{\{QUIZ_L1_FAME\}\}/g, DATASET_FACTS.quizL1Fame ?? "");
 }
 
 function layout({ title, description, canonical, jsonLd, body, head = "", scripts = "" }) {
@@ -586,6 +607,13 @@ async function main() {
     infobox: infoboxEvents.toLocaleString("en-US"),
     first: yearLabel(years[0]),
     last: yearLabel(years[years.length - 1]),
+    // Read from the built quiz rather than written down. The quiz page claimed
+    // "All 3,012 of them" and "an article in more than 120 languages" long after
+    // both had stopped being true -- the pool had moved to 2,893 and level 1's
+    // actual floor is 39 -- because the prose was hand-edited and the numbers
+    // were not. Anything the page asserts about the quiz now comes from the file
+    // the quiz actually loads.
+    ...quizFacts(),
   };
   console.log(`Dataset: ${DATASET_FACTS.total} events, ${DATASET_FACTS.first} to ${DATASET_FACTS.last} (${DATASET_FACTS.approx} approximate-date, ${DATASET_FACTS.infobox} infobox-dated)`);
   const total = years.reduce((s, y) => s + byYear.get(y).length, 0);

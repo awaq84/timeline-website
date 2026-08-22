@@ -120,11 +120,11 @@ export const STATIC_PAGES = [
   </section>
 
   <h2>How the levels work</h2>
-  <p>Difficulty moves on two axes at once. The target period starts fifteen centuries wide &mdash; level 1 is really asking which millennium something belongs to &mdash; and closes to ten years, so guessing roughly the right era stops being enough. At the same time the events themselves get more obscure: level 1 draws only on events with a Wikipedia article in more than 120 languages — the moon landing, the fall of the Berlin Wall, the founding of the Roman Republic — while level 10 will happily ask you about the Battle of Graus.</p>
+  <p>Difficulty moves on two axes at once. The target period starts fifteen centuries wide &mdash; level 1 is really asking which millennium something belongs to &mdash; and closes to ten years, so guessing roughly the right era stops being enough. At the same time the events themselves get more obscure: level 1 draws only on events with a Wikipedia article in more than {{QUIZ_L1_FAME}} languages — the moon landing, the fall of the Berlin Wall, the founding of the Roman Republic — while level 10 will happily ask you about the Battle of Graus.</p>
   <p>You will not be marked wrong for a date nobody agrees on. Every event in the quiz is one Wikidata records to an exact year; the tens of thousands of events elsewhere on this site that are known only to a century or a decade are excluded from it entirely, because a question you cannot fairly answer is not a question.</p>
 
   <h2>Where the questions come from</h2>
-  <p>All 3,012 of them are drawn from the same <a href="/about/">Wikidata-derived dataset</a> behind the <a href="/">interactive map</a>, filtered down to events that are dated precisely, phrased as a statement of something that happened, and well enough recorded to be a fair question. Nothing is written by hand except the phrasing of a few dozen famous events whose titles do not read as sentences.</p>
+  <p>All {{QUIZ_POOL}} of them are drawn from the same <a href="/about/">Wikidata-derived dataset</a> behind the <a href="/">interactive map</a>, filtered down to events that are dated precisely, phrased as a statement of something that happened, and well enough recorded to be a fair question. Nothing is written by hand except the phrasing of a few dozen famous events whose titles do not read as sentences.</p>
   <p>Your score lives in the page and nowhere else. This site <a href="/privacy/">sets no cookies and stores nothing</a>, so closing the tab ends the run — there is no leaderboard and no account.</p>
 `,
   },

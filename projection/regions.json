@@ -1,0 +1,42 @@
+[
+  {
+    "name": "sun",
+    "note": "The sunburst breaking through cloud. Brightest point of the painting and the implied light source for every other effect.",
+    "effect": "glow",
+    "phase": 0,
+    "color": "rgba(255,196,84,0.20)",
+    "polygon": [[0.28, 0.14], [0.60, 0.12], [0.62, 0.46], [0.30, 0.48]]
+  },
+  {
+    "name": "reflection",
+    "note": "Golden reflection column running down the water to the bottom edge. The glitter path.",
+    "effect": "glow",
+    "phase": 1.4,
+    "color": "rgba(255,206,110,0.14)",
+    "polygon": [[0.30, 0.56], [0.60, 0.56], [0.58, 1.0], [0.32, 1.0]]
+  },
+  {
+    "name": "clouds-bright",
+    "note": "Pale billowing cloud, upper right. Already bright, so added light does least here.",
+    "effect": "bright",
+    "polygon": [[0.55, 0.0], [1.0, 0.0], [1.0, 0.38], [0.56, 0.34]]
+  },
+  {
+    "name": "clouds-dark",
+    "note": "Dark storm mass, upper left. Good target for lightning and cold light.",
+    "effect": "dark",
+    "polygon": [[0.0, 0.0], [0.32, 0.0], [0.34, 0.45], [0.0, 0.48]]
+  },
+  {
+    "name": "water",
+    "note": "Sea surface below the horizon. Horizontal ripple band.",
+    "effect": "flow",
+    "polygon": [[0.0, 0.54], [1.0, 0.54], [1.0, 1.0], [0.0, 1.0]]
+  },
+  {
+    "name": "horizon",
+    "note": "Sky/water division, around y=0.54. Effect bands should respect it — a ripple that crosses it breaks the illusion instantly.",
+    "effect": "guide",
+    "polygon": [[0.0, 0.51], [1.0, 0.51], [1.0, 0.57], [0.0, 0.57]]
+  }
+]

@@ -448,9 +448,8 @@ function buildTiers() {
   }
 
   run.tiers = levels().map((lv) => {
-    // p.b is a birth or a death, barred from the levels that ask for it: four
-    // birthdays in a row is a memory test rather than a history one.
-    const pool = sorted.filter((p) => p.f >= lv.minFame && !(lv.noBio && p.b));
+    // The pool is pre-filtered by the build; the level only sets the fame floor.
+const pool = sorted.filter((p) => p.f >= lv.minFame);
     return { pool, years: pool.map((p) => p.y) };
   });
 }

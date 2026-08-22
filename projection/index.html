@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Projection Wall</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #000; overflow: hidden;
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #8fa;
+  }
+  body.calibrating { cursor: crosshair; }
+  body:not(.calibrating) { cursor: none; }
+  /* Text panels hide independently of the alignment overlay, so you can read
+     the guides while aligning without the readout covering the painting. */
+  body.nohud #hud, body.nohud #status { display: none; }
+
+  /* The stage is the painting-space canvas, warped onto the wall by a homography. */
+  /* Overlapping margins add rather than occlude — two projections of light on
+     the same wall combine, they do not cut each other out. */
+  #stage, #stage2 { mix-blend-mode: screen; }
+  #stage, #stage2 {
+    position: absolute; top: 0; left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+
+  /* Calibration chrome — never visible during a show. Only the surface being
+     aligned shows its overlay, so the two quads never fight for pointer events. */
+  #overlay, #overlay2 { position: absolute; inset: 0; pointer-events: none; display: none; }
+  #edges, #edges2 { position: absolute; inset: 0; pointer-events: none; }
+  /* Handles carry pointer-events:auto, so silencing the overlay is not enough —
+     the inactive surface's handles must opt out individually. Dimmed so the
+     active quad is obvious at a glance. */
+  .inert .handle { pointer-events: none !important; opacity: 0.45; }
+  .inert svg { opacity: 0.5; }
+  #panels { position: absolute; inset: 0; pointer-events: none; }
+
+  .handle {
+    position: absolute; width: 46px; height: 46px;
+    margin: -23px 0 0 -23px;
+    border: 2px solid #0f8; border-radius: 50%;
+    background: rgba(0, 255, 136, 0.12);
+    pointer-events: auto; cursor: grab;
+    display: grid; place-items: center;
+    color: #0f8; font-size: 11px; font-weight: 700;
+  }
+  .handle.active { background: rgba(0,255,136,.35); cursor: grabbing; }
+  .handle::after {
+    content: ''; position: absolute;
+    width: 2px; height: 2px; background: #0f8; border-radius: 50%;
+  }
+
+  #edges { position: absolute; inset: 0; }
+
+  /* pointer-events:none is load-bearing. Nothing in the HUD is clickable, and
+     with 'auto' it swallows any drag starting underneath it — including the
+     TL corner handle, which sits right where this panel does. */
+  /* Catalogue overlay: names the scene being demonstrated and what it listens
+     to. Plain DOM rather than canvas, so it stays crisp and is not warped by
+     the homography. */
+  #catalogue {
+    position: absolute; left: 50%; bottom: 6vh; transform: translateX(-50%);
+    display: none; text-align: center; pointer-events: none;
+    background: rgba(0,0,0,.72); border: 1px solid #0f8;
+    padding: 14px 26px; border-radius: 4px; max-width: 80vw;
+  }
+  body.catalogue #catalogue { display: block; }
+  #catName { font-size: 26px; color: #0f8; font-weight: 700; letter-spacing: .04em; }
+  #catWhich { font-size: 12px; color: #6fa; margin-bottom: 6px; }
+  #catFx { font-size: 13px; color: #9fd; margin-top: 6px; }
+  #catMusic { font-size: 14px; color: #ffd166; margin-top: 8px; }
+  #catBars { font: 12px ui-monospace, monospace; color: #0f8; margin-top: 8px; }
+
+  #hud {
+    position: absolute; left: 24px; top: 24px;
+    background: rgba(0,0,0,.82); border: 1px solid #0f8;
+    padding: 14px 18px; max-width: 380px; pointer-events: none;
+    white-space: pre-wrap;
+  }
+  #hud b { color: #0f8; }
+  #hud kbd {
+    background: #0f8; color: #000; padding: 0 5px;
+    border-radius: 3px; font: inherit; font-weight: 700;
+  }
+  #status { position: absolute; right: 24px; top: 24px;
+    background: rgba(0,0,0,.82); border: 1px solid #0f8; padding: 10px 14px; }
+</style>
+</head>
+<body class="calibrating">
+
+  <!-- Painting-space canvas. Everything draws here in a fixed coordinate system;
+       the homography maps it onto the painting's four physical corners. -->
+  <canvas id="stage"></canvas>
+  <canvas id="stage2"></canvas>
+
+  <!-- One overlay per painting. Both can be live at once, told apart by the
+       accent colour of their handles: green for painting 1, yellow for 2. -->
+  <div id="overlay">
+    <svg id="edges"></svg>
+  </div>
+  <div id="overlay2">
+    <svg id="edges2"></svg>
+  </div>
+
+  <div id="catalogue">
+  <div id="catWhich"></div>
+  <div id="catName"></div>
+  <div id="catFx"></div>
+  <div id="catMusic"></div>
+  <div id="catBars"></div>
+</div>
+<div id="panels">
+    <div id="hud"></div>
+    <div id="status"></div>
+  </div>
+
+  <script src="mapper.js"></script>
+  <script src="camera.js"></script>
+  <script src="audio.js"></script>
+  <script src="analysis.js"></script>
+  <script src="effects.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

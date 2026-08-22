@@ -5,7 +5,7 @@
 // than anywhere else on the site: a wrong or unreadable entry does not just look
 // untidy, it marks the player wrong.
 //
-// Four filters, each rejecting a specific way an event breaks a quiz:
+// Five filters, each rejecting a specific way an event breaks a quiz:
 //
 //  1. EXACT YEARS ONLY. Events carrying `prec` are dated to a century, decade or
 //     millennium and only anchored to a placeholder year -- see
@@ -27,11 +27,14 @@
 //
 //  4. FAME, ON TWO TIERS. An event nobody recognises makes an unanswerable
 //     question, so entries need a Wikidata sitelink count (how many language
-//     Wikipedias carry the article) from enrich-sitelinks.mjs. People get a much
-//     higher bar than everything else, because they overwhelm the pool
-//     otherwise: at a single threshold of 12 the pool is 84% birth and death
-//     dates, which is both the dullest and the hardest kind of question. The
-//     split keeps famous people in and turns the pool back into a mix.
+//     Wikipedias carry the article) from enrich-sitelinks.mjs. People keep a
+//     much higher bar than everything else even now that births and deaths are
+//     excluded outright, because it is the backstop if a person ever reaches the
+//     pool by some other phrasing.
+//
+//  5. THREE QUESTION SHAPES ARE BARRED regardless of how well they score on
+//     everything above: births and deaths, university foundings, and land masses
+//     being discovered. See the constants below for what each one is and why.
 //
 // Usage:  node scripts/enrich-sitelinks.mjs   (once, populates the cache)
 //         node scripts/build-quiz.mjs
@@ -56,6 +59,30 @@ const MIN_FAME_PEOPLE = Number(process.env.QUIZ_MIN_FAME_PEOPLE || 90);
 // proportionally present instead of pretending they are as well recorded.
 const MAX_PER_CENTURY = Number(process.env.QUIZ_MAX_PER_CENTURY || 260);
 
+// --- Excluded question shapes ---
+//
+// Three kinds of statement are barred outright. All three are phraseable, dated,
+// famous enough and otherwise perfectly valid -- they are excluded because they
+// make bad questions, not bad data, and they stay everywhere else on the site.
+
+// "X was born" / "X died". The title suffix, not the finished statement: these
+// are the same two words the phrasing rules and subjectKey() key on, so matching
+// here cannot drift away from what the phrasing actually produces.
+const BIO_TITLE = /\s+(born|died)$/i;
+
+// Universities and colleges. Deliberately not Institute, Academy, Observatory,
+// Museum or Hospital, which the same phrasing rule also sends to "was founded":
+// those are 17 entries including MIT and the Royal Observatory, and the request
+// was about university foundings.
+const FOUNDED_SCHOOL = /\b(?:Universit(?:y|ies|é|ät|à|a|ad|eit|ä)|College|Polytechnic)\b.*\bwas founded$/i;
+
+// Land masses. 62 of the 69 "was discovered" statements are islands and the rest
+// are caves -- "Coche Island was discovered", "Fingal's Cave was discovered" --
+// which ask which voyage happened to sight a rock, not anything about history.
+// Tombs, hoards, fossils and meteorites are left in: "Tutankhamun's tomb was
+// discovered" and "Staffordshire Hoard was discovered" are events people know.
+const DISCOVERED_LANDMASS = /\b(?:Islands?|Isles?|Atolls?|Reefs?|Caves?|Rocks?|Skerry|Skerries)\b.*\bwas discovered$/i;
+
 // Stands in for the Infinity the hand-written phrasings carry through the
 // candidate list. They are the moon landing, Pearl Harbor, the fall of the
 // Berlin Wall, and they belong on level 1 whatever their sitelink count says;
@@ -78,26 +105,23 @@ const HAND_FAME = 999;
 // check every level against the pool it just generated. The names are the
 // payoff: they run from cheerful ignorance through overconfidence to something
 // unbearable, and the one you finish on is the shareable part.
-// noBio bars "X was born" and "X died" from the first six levels. They are the
-// dullest question in the set -- four birthdays in a row is a memory test, not a
-// history one -- and they were dominating, being 1,123 of the 3,012 entries and
-// almost all of the high-fame ones.
+// The floors are nearly flat at ~38 through level 6 because that is the highest
+// the data supports while still leaving 200+ distinct puzzles per level; the
+// difficulty over that stretch comes from the window narrowing, not the fame
+// floor. From level 7 the floor resumes falling, which is where the ramp gets
+// its bite.
 //
-// Barring them costs the fame ramp on those levels, and there is no way around
-// it: only 58 non-biographical entries clear a sitelink count of 120, so a level
-// that excludes births and deaths cannot also demand world-famous events and
-// still have puzzles left. The floors below are therefore nearly flat at ~38
-// through level 6 -- the highest the data supports at 240+ distinct puzzles --
-// and the difficulty over that stretch comes from the window narrowing from
-// fifty years to twenty-five. From level 7 the biographies return and the fame
-// floor resumes falling, which is where the ramp gets its bite back.
+// These levels used to carry a noBio flag that barred births and deaths from the
+// first six. That flag is gone because births and deaths are now barred from the
+// pool outright -- see BIO_TITLE above -- so there was nothing left for it to
+// exclude.
 const LEVELS = [
-  { n: 1, span: 1500, minFame: 39, noBio: true, name: "I Know History Is a Thing" },
-  { n: 2, span: 1000, minFame: 39, noBio: true, name: "Vaguely Recalls School" },
-  { n: 3, span: 800, minFame: 38, noBio: true, name: "Confident at the Pub Quiz" },
-  { n: 4, span: 600, minFame: 38, noBio: true, name: "Dangerously Overconfident" },
-  { n: 5, span: 400, minFame: 37, noBio: true, name: "Owns Three Documentaries" },
-  { n: 6, span: 300, minFame: 36, noBio: true, name: "Actually Reads the Plaques" },
+  { n: 1, span: 1500, minFame: 39, name: "I Know History Is a Thing" },
+  { n: 2, span: 1000, minFame: 39, name: "Vaguely Recalls School" },
+  { n: 3, span: 800, minFame: 38, name: "Confident at the Pub Quiz" },
+  { n: 4, span: 600, minFame: 38, name: "Dangerously Overconfident" },
+  { n: 5, span: 400, minFame: 37, name: "Owns Three Documentaries" },
+  { n: 6, span: 300, minFame: 36, name: "Actually Reads the Plaques" },
   { n: 7, span: 200, minFame: 28, name: "Unbearable at Dinner Parties" },
   { n: 8, span: 100, minFame: 22, name: "Corrects the Tour Guide" },
   { n: 9, span: 50, minFame: 16, name: "Cited in Footnotes" },
@@ -274,7 +298,7 @@ async function main() {
   //
   // Build order is fetch -> merge -> dedupe -> enrich-sitelinks -> build-quiz,
   // and nothing enforces it. This at least makes a skipped step loud.
-  const rejected = { approx: 0, country: 0, unphrasable: 0, obscure: 0, dated: 0, uncached: 0 };
+  const rejected = { approx: 0, country: 0, unphrasable: 0, obscure: 0, dated: 0, uncached: 0, bio: 0, dull: 0 };
   const candidates = [];
 
   for (const e of events) {
@@ -290,9 +314,32 @@ async function main() {
     const hand = HAND_WRITTEN[e.title];
     if (hand) { candidates.push({ e, q: hand, fame: Infinity, hand: true }); continue; }
 
+    // Births and deaths are out. They made 1,231 of a 3,349 pool -- 37%, the
+    // largest single category -- and they are the weakest questions in it: the
+    // year a person was born is a lookup, not something you can reason toward
+    // from anything else you know, and a run that keeps offering them feels like
+    // a memory test rather than a history quiz. Matched on the title suffix
+    // rather than on the finished statement, so a change to the phrasing rules
+    // cannot silently stop catching them.
+    if (BIO_TITLE.test(e.title)) { rejected.bio++; continue; }
+
     const q = questionFor(e.title, e.category);
     if (!q) { rejected.unphrasable++; continue; }
     if (statesAYear(q, e.year)) { rejected.dated++; continue; }
+    // University foundings and "X island was discovered" go for the same reason.
+    // A university's founding year is arbitrary to anyone who did not attend it,
+    // and the discovery set is a list of small islands -- "the Cayman Islands
+    // was discovered", "Coche Island was discovered" -- which asks the player to
+    // recall the itinerary of a voyage rather than anything about history.
+    //
+    // These two are matched on the STATEMENT, not the title, because the title
+    // carries no verb: both arrive as bare names ("University of Oxford",
+    // "Cayman Islands") and it is questionFor() that decides, from the category
+    // and the head noun, that one was founded and the other discovered. The
+    // statement is the only place the distinction exists. assertNoneRemain()
+    // below re-checks the built pool so a phrasing change cannot quietly let
+    // them back in.
+    if (FOUNDED_SCHOOL.test(q) || DISCOVERED_LANDMASS.test(q)) { rejected.dull++; continue; }
     const fame = fameOf(e);
     if (fame === null) { rejected.uncached++; continue; }
     if (fame < (e.category === "People" ? MIN_FAME_PEOPLE : MIN_FAME_OTHER)) { rejected.obscure++; continue; }
@@ -304,6 +351,8 @@ async function main() {
   console.log(`  dropped ${rejected.country.toLocaleString("en-US")} Empires & Countries`);
   console.log(`  dropped ${rejected.unphrasable.toLocaleString("en-US")} whose title states no event`);
   console.log(`  dropped ${rejected.dated.toLocaleString("en-US")} whose statement contains a year`);
+  console.log(`  dropped ${rejected.bio.toLocaleString("en-US")} births and deaths`);
+  console.log(`  dropped ${rejected.dull.toLocaleString("en-US")} university foundings and island discoveries`);
   console.log(`  dropped ${rejected.obscure.toLocaleString("en-US")} below the fame floor`);
   if (rejected.uncached) {
     console.warn(
@@ -345,12 +394,7 @@ async function main() {
     //
     // The hand-written entries come in at Infinity, which does not survive
     // JSON, so they are pinned to a value above the real maximum instead.
-    // b marks a birth or a death. Taken from the title rather than by matching
-    // the finished statement, so a change to the phrasing rules cannot silently
-    // stop flagging them -- "born" and "died" are the suffixes those rules key
-    // on, and subjectKey() strips the same two.
     const entry = { y: e.year, q, c: CATEGORY_ORDER.indexOf(e.category), s: sub, f: Number.isFinite(fame) ? fame : HAND_FAME };
-    if (/\s+(born|died)$/i.test(e.title)) entry.b = 1;
 
     // w and d turn the reveal into something you can learn from rather than just
     // be marked against. w is the article title, not the full URL: every one of
@@ -371,6 +415,31 @@ async function main() {
   }
 
   pool.sort((a, b) => a.y - b.y || a.q.localeCompare(b.q));
+
+  // The three exclusions are enforced on the way in -- births and deaths on the
+  // title, the other two on the statement -- so this re-checks the finished pool
+  // against what a player would actually read. It is not belt-and-braces for its
+  // own sake: two of the three match on text that questionFor() generates, and a
+  // new phrasing rule for, say, "was established" would route universities
+  // straight past FOUNDED_SCHOOL without anything failing. Fail the build loudly
+  // instead of shipping a quiz that quietly asks the questions again.
+  const barred = [
+    ["births and deaths", /\b(?:was born|died)$/i],
+    ["university foundings", FOUNDED_SCHOOL],
+    ["land mass discoveries", DISCOVERED_LANDMASS],
+  ];
+  let leaked = false;
+  for (const [what, re] of barred) {
+    const hits = pool.filter((p) => re.test(p.q));
+    if (!hits.length) continue;
+    leaked = true;
+    console.error(`\n${hits.length} ${what} reached the pool despite being excluded. First few:`);
+    for (const h of hits.slice(0, 5)) console.error(`  ${h.y}  ${h.q}`);
+  }
+  if (leaked) {
+    console.error("\nA phrasing rule probably changed. Fix the pattern or the rule; not writing data/quiz.js.");
+    process.exit(1);
+  }
 
   // --- Reporting ------------------------------------------------------------
 
@@ -397,8 +466,8 @@ async function main() {
   // pool that was actually just built, so a data change that starves a level
   // shows up in the build output rather than as an empty question in someone's
   // browser.
-  const countPuzzles = (span, minFame, noBio) => {
-    const sub = pool.filter((p) => p.f >= minFame && !(noBio && p.b));
+  const countPuzzles = (span, minFame) => {
+    const sub = pool.filter((p) => p.f >= minFame);
     const byYear = new Map();
     for (const p of sub) byYear.set(p.y, (byYear.get(p.y) || 0) + 1);
     const reach = Math.max(40, span * 5);
@@ -421,12 +490,12 @@ async function main() {
   console.log("\nLevel ladder:");
   let starved = 0;
   for (const lv of LEVELS) {
-    const n = countPuzzles(lv.span, lv.minFame, lv.noBio);
-    const eligible = pool.filter((p) => p.f >= lv.minFame && !(lv.noBio && p.b)).length;
+    const n = countPuzzles(lv.span, lv.minFame);
+    const eligible = pool.filter((p) => p.f >= lv.minFame).length;
     if (n < MIN_PUZZLES_PER_LEVEL) starved++;
     console.log(
       `  L${String(lv.n).padStart(2)}  ${String(lv.span).padStart(2)}y  fame>=${String(lv.minFame).padStart(3)}` +
-        `  ${lv.noBio ? "no bio" : "bio ok"}  eligible ${String(eligible).padStart(5)}  puzzles ${String(n).padStart(5)}` +
+        `  eligible ${String(eligible).padStart(5)}  puzzles ${String(n).padStart(5)}` +
         `${n < MIN_PUZZLES_PER_LEVEL ? "  <-- TOO FEW" : ""}  ${lv.name}`
     );
   }

@@ -26,7 +26,14 @@ for (const p of api.QUIZ_EVENTS) {
 
 const N = 8000;
 let nulls = 0, checked = 0;
-const fail = { optCount: 0, corrCount: 0, corrOutside: 0, wrongInside: 0, dupSubject: 0, dupStatement: 0, bioInNoBio: 0, fameFloor: 0, windowOOB: 0, ambiguous: 0 };
+// Births, deaths, university foundings and land masses being discovered are
+// barred from the pool by scripts/build-quiz.mjs. Restated here in one pattern
+// so the test fails on what the player is shown, not on what the builder
+// intended.
+const BARRED_SHAPE =
+  /(?:\b(?:was born|died)$)|(?:\b(?:Universit(?:y|ies|é|ät|à|a|ad|eit|ä)|College|Polytechnic)\b.*\bwas founded$)|(?:\b(?:Islands?|Isles?|Atolls?|Reefs?|Caves?|Rocks?|Skerry|Skerries)\b.*\bwas discovered$)/i;
+
+const fail = { optCount: 0, corrCount: 0, corrOutside: 0, wrongInside: 0, dupSubject: 0, dupStatement: 0, barredShape: 0, fameFloor: 0, windowOOB: 0, ambiguous: 0 };
 const examples = [];
 
 for (let i = 0; i < N; i++) {
@@ -45,7 +52,11 @@ for (let i = 0; i < N; i++) {
     if (inside && !p.answer.has(j)) fail.corrOutside++;
     if (!inside && p.answer.has(j)) fail.wrongInside++;
     if (o.f < lv.minFame) fail.fameFloor++;
-    if (lv.noBio && o.b) fail.bioInNoBio++;
+    // The three barred question shapes, checked on the option a player actually
+    // sees rather than on the pool. build-quiz.mjs asserts the same thing about
+    // the pool it writes; this catches the case where a stale data/quiz.js is
+    // still on disk, which is exactly what the browser would be serving.
+    if (BARRED_SHAPE.test(o.q)) fail.barredShape++;
     // THE DEFECT: a wrong option whose statement is true somewhere in the window.
     if (!p.answer.has(j)) {
       const ys = yearsByQ.get(o.q);
