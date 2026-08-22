@@ -572,7 +572,7 @@ function initMap() {
 // position this site is entitled to take.
 function drawDisputedAreas() {
   if (!disputedLayer) return;
-  d3.json("data/disputed-areas.json?v=4")
+  d3.json("data/disputed-areas.json?v=cd489899")
     .then((fc) => {
       disputedLayer
         .selectAll("path")

@@ -33,7 +33,7 @@ const CENTURY_DIR = path.join(ROOT, "century");
 const SITEMAP_PATH = path.join(ROOT, "sitemap.xml");
 
 const SITE = "https://timelinehistory.net";
-const CSS_VERSION = 4;
+const CSS_VERSION = "5ba15398";
 
 // Mirrors CATEGORY_COLORS / CATEGORY_ORDER in app.js. Duplicated rather than
 // imported because app.js is a browser script with no exports, and turning it
