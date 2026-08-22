@@ -44,11 +44,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { articleTitleFromWiki } from "./wiki-title.mjs";
 import { HAND_WRITTEN, questionFor } from "./event-phrasing.mjs";
+import { contextName } from "./quiz-context.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_PATH = path.join(__dirname, "..", "data", "events.js");
 const SITELINKS_PATH = path.join(__dirname, "..", "data", ".cache", "sitelinks.json");
 const PRECISION_PATH = path.join(__dirname, "..", "data", ".cache", "date-precision.json");
+const CONTEXT_FAME_PATH = path.join(__dirname, "..", "data", ".cache", "context-fame.json");
 const OUT_PATH = path.join(__dirname, "..", "data", "quiz.js");
 
 const MIN_FAME_OTHER = Number(process.env.QUIZ_MIN_FAME_OTHER || 12);
@@ -59,6 +61,11 @@ const MIN_FAME_PEOPLE = Number(process.env.QUIZ_MIN_FAME_PEOPLE || 90);
 // centuries rather than padding the empty ones, keeping the sparse eras
 // proportionally present instead of pretending they are as well recorded.
 const MAX_PER_CENTURY = Number(process.env.QUIZ_MAX_PER_CENTURY || 260);
+
+// How well known a war or period must be before it can vouch for an event
+// nobody has heard of, and how many events any one of them may sponsor.
+const MIN_CONTEXT_FAME = Number(process.env.QUIZ_MIN_CONTEXT_FAME || 40);
+const CONTEXT_QUOTA = Number(process.env.QUIZ_CONTEXT_QUOTA || 40);
 
 // --- Excluded question shapes ---
 //
@@ -77,12 +84,43 @@ const BIO_TITLE = /\s+(born|died)$/i;
 // was about university foundings.
 const FOUNDED_SCHOOL = /\b(?:Universit(?:y|ies|é|ät|à|a|ad|eit|ä)|College|Polytechnic)\b.*\bwas founded$/i;
 
-// Land masses. 62 of the 69 "was discovered" statements are islands and the rest
-// are caves -- "Coche Island was discovered", "Fingal's Cave was discovered" --
-// which ask which voyage happened to sight a rock, not anything about history.
-// Tombs, hoards, fossils and meteorites are left in: "Tutankhamun's tomb was
-// discovered" and "Staffordshire Hoard was discovered" are events people know.
-const DISCOVERED_LANDMASS = /\b(?:Islands?|Isles?|Atolls?|Reefs?|Caves?|Rocks?|Skerry|Skerries)\b.*\bwas discovered$/i;
+// Geographical discoveries. 62 of the 69 "was discovered" statements were
+// islands and the rest caves -- "Coche Island was discovered", "Fingal's Cave
+// was discovered" -- which ask which voyage happened to sight a rock, not
+// anything about history. The feature list is broader than what the data
+// currently contains, so a future harvest cannot reintroduce the same question
+// shape through a landform this never saw.
+//
+// Tombs, hoards, fossils and meteorites stay: "Tutankhamun's tomb was
+// discovered" is an event people know, and it is not a geographical discovery.
+const DISCOVERED_LANDMASS =
+  /\b(?:Islands?|Isles?|Atolls?|Reefs?|Caves?|Rocks?|Skerry|Skerries|Mountains?|Peaks?|Lakes?|Rivers?|Bays?|Straits?|Capes?|Glaciers?|Deserts?|Falls|Springs?|Peninsulas?|Archipelagos?|Seas?|Gulfs?|Fjords?|Volcanoes?)\b.*\bwas discovered$/i;
+
+// Sporting fixtures and sports venues. Kept separate from the phrasing module's
+// IS_FIXTURE, which only stops the bare-name fallback inventing new ones: this
+// bars them however they were phrased, including by the title rules that put
+// eighteen of them in the pool -- Wimbledon, the US and French Opens, the Six
+// Nations, seven Formula One Grands Prix.
+//
+// Sport only, not the whole "Sports & Entertainment" category. The Globe Theatre
+// opening in 1599, the Bolshoi in 1776 and the Sydney Opera House in 1973 are
+// filed there too, and none of them is a sports event.
+const SPORTS =
+  /\b(?:Grand Prix|Olympics?|Olympic Games|Olympiad|Games|Championships?|Cup|Open|Tournament|League|Derby|Regatta|Masters|Stadium|Arena|Velodrome|Racecourse|Racetrack|Ballpark)\b/i;
+
+// Sports clubs, which the pattern above does not reach: "Juventus FC was
+// founded" and "1. FC Slovácko was founded" are filed under Economy & Trade as
+// companies, and their titles name no fixture. The description is what gives
+// them away -- "Association football club in Turin, Italy" -- so this is checked
+// against that as well as the title. 67 of them are in the dataset.
+const SPORTS_CLUB =
+  /\b(?:football|associaton football|association football|basketball|ice hockey|handball|baseball|rugby|cricket|volleyball|futsal)\s+(?:club|team)\b|\bsports?\s+club\b|(?:^|\s)(?:F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|H\.?C\.?|B\.?C\.?)(?:\s|$)/i;
+
+const isSport = (statement, description) =>
+  SPORTS.test(statement) ||
+  SPORTS.test(description || "") ||
+  SPORTS_CLUB.test(statement) ||
+  SPORTS_CLUB.test(description || "");
 
 // Stands in for the Infinity the hand-written phrasings carry through the
 // candidate list. They are the moon landing, Pearl Harbor, the fall of the
@@ -306,6 +344,43 @@ async function main() {
     return hit ? hit[0] : null;
   };
 
+  // --- Answerability by context ---
+  //
+  // The sitelink floor asks "is this event famous?", and for one large class of
+  // event that is the wrong question. The Battle of Torrence's Tavern has two
+  // language Wikipedias and nobody has heard of it, but it is shown with its
+  // description -- "Battle of the American Revolutionary War", with the year
+  // already stripped out by stripDates() -- and placing it needs no knowledge of
+  // the battle at all. Only of when the war was.
+  //
+  // So such an event is scored on the fame of the period it cites rather than
+  // its own. 8,690 "Battle of ..." events exist and 838 were reaching the quiz;
+  // the floor was not filtering unanswerable questions there so much as obscure
+  // subjects, which is not the same thing.
+  //
+  // Two limits keep this honest. The context must itself be well known -- an
+  // obscure war vouches for nothing -- and no context may sponsor more than
+  // CONTEXT_QUOTA events, because 353 of these cite the American Civil War and
+  // 112 the Peninsular War, and an unbounded rule would tip the pool into one
+  // war and one continent.
+  let contextFame = {};
+  try {
+    contextFame = JSON.parse(await fs.readFile(CONTEXT_FAME_PATH, "utf8"));
+  } catch {
+    console.warn(`No ${CONTEXT_FAME_PATH} -- run scripts/enrich-context-fame.mjs to widen the pool.`);
+  }
+  const contextSponsors = new Map();
+  const sponsoredFame = (e, description) => {
+    const name = contextName(description);
+    if (!name) return null;
+    const f = contextFame[name];
+    if (!f || f < MIN_CONTEXT_FAME) return null;
+    const used = contextSponsors.get(name) || 0;
+    if (used >= CONTEXT_QUOTA) return null;
+    contextSponsors.set(name, used + 1);
+    return f;
+  };
+
   // null means "not in the cache", 0 means "in the cache with no sitelinks".
   const fameOf = (e) => {
     const t = articleTitleFromWiki(e.wiki);
@@ -364,7 +439,7 @@ async function main() {
     return polityEnded.has(e.title.replace(/\s+founded$/, ""));
   };
 
-  const rejected = { approx: 0, country: 0, unphrasable: 0, obscure: 0, dated: 0, uncached: 0, bio: 0, dull: 0 };
+  const rejected = { approx: 0, country: 0, unphrasable: 0, obscure: 0, dated: 0, uncached: 0, bio: 0, dull: 0, sport: 0 };
   const candidates = [];
 
   for (const e of events) {
@@ -377,8 +452,16 @@ async function main() {
     // ones the generic rules cannot phrase, since their titles are prose rather
     // than "X born" or "Battle of Y". Left to the normal path they were dropped
     // as unphrasable, which cost the pool nearly every iconic event it had.
+    // The hand-written phrasings are exempt from the quality filters below, but
+    // not from the content bans. "the first Olympic Games were held" is in that
+    // list and was reaching the pool with fame 999, straight past the sports
+    // rule, because being hand-written skipped every check after this line.
     const hand = HAND_WRITTEN[e.title];
-    if (hand) { candidates.push({ e, q: hand, fame: Infinity, hand: true }); continue; }
+    if (hand) {
+      if (isSport(hand, e.summary)) { rejected.sport++; continue; }
+      candidates.push({ e, q: hand, fame: Infinity, hand: true });
+      continue;
+    }
 
     // Births and deaths are out. They made 1,231 of a 3,349 pool -- 37%, the
     // largest single category -- and they are the weakest questions in it: the
@@ -406,9 +489,21 @@ async function main() {
     // below re-checks the built pool so a phrasing change cannot quietly let
     // them back in.
     if (FOUNDED_SCHOOL.test(q) || DISCOVERED_LANDMASS.test(q)) { rejected.dull++; continue; }
+    if (isSport(q, e.summary)) { rejected.sport++; continue; }
     const fame = fameOf(e);
     if (fame === null) { rejected.uncached++; continue; }
-    if (fame < (e.category === "People" ? MIN_FAME_PEOPLE : MIN_FAME_OTHER)) { rejected.obscure++; continue; }
+    if (fame < (e.category === "People" ? MIN_FAME_PEOPLE : MIN_FAME_OTHER)) {
+      // Last chance: a well-known war or period named in the description can
+      // vouch for an event too obscure to clear the floor on its own. The score
+      // it carries forward is the CONTEXT's, because that is what the player
+      // actually has to know -- which also puts it on the right rungs of the
+      // ladder, rather than dumping it all on level 10 where its own sitelink
+      // count would have stranded it.
+      const sponsored = sponsoredFame(e, e.summary || "");
+      if (sponsored === null) { rejected.obscure++; continue; }
+      candidates.push({ e, q, fame: sponsored, sponsored: true });
+      continue;
+    }
     candidates.push({ e, q, fame });
   }
 
@@ -418,7 +513,8 @@ async function main() {
   console.log(`  dropped ${rejected.unphrasable.toLocaleString("en-US")} whose title states no event`);
   console.log(`  dropped ${rejected.dated.toLocaleString("en-US")} whose statement contains a year`);
   console.log(`  dropped ${rejected.bio.toLocaleString("en-US")} births and deaths`);
-  console.log(`  dropped ${rejected.dull.toLocaleString("en-US")} university foundings and island discoveries`);
+  console.log(`  dropped ${rejected.dull.toLocaleString("en-US")} university foundings and geographical discoveries`);
+  console.log(`  dropped ${rejected.sport.toLocaleString("en-US")} sporting fixtures and venues`);
   console.log(`  dropped ${rejected.obscure.toLocaleString("en-US")} below the fame floor`);
   if (rejected.uncached) {
     console.warn(
