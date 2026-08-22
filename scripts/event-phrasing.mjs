@@ -146,7 +146,109 @@ const CATEGORY_RULES = {
   ],
 };
 
-function questionFor(title, category) {
+// --- Bare-name fallback, driven by the date's own Wikidata property ---
+//
+// Most of the dataset is titled with a bare proper noun -- "Bent Pyramid",
+// "Medici Bank", "Zincirli Höyük" -- and 59,510 events were dropped from the
+// quiz for saying nothing about what happened. They are not unusable, though:
+// the reader is shown the Wikidata description beside every option, so
+// "Mohenjo-daro / archaeological site in the province of Sindh, Pakistan" reads
+// perfectly well. What was missing was never the noun. It was the verb.
+//
+// CATEGORY_RULES above guess the verb from the head noun and a stated assumption
+// that "those rows are dated by inception (P571)". This does not guess. The
+// precision cache built by enrich-date-precision.mjs stores every (property,
+// year, precision) triple per article, so the property that actually supplied
+// the stored year is known: P571 inception, P580 start time, P575 discovery,
+// P576 dissolution. The verb follows from that rather than from a hunch about
+// what kind of thing the title names.
+//
+// Deliberately narrow. Only the property/category pairs where the claim is true
+// for every member of the pair are listed, because a wrong verb here is not a
+// cosmetic problem -- the quiz grades people against it. P585 "point in time" is
+// absent throughout: it means only "this is when the thing is dated to", which
+// supports no verb at all for a bare noun. P569 and P570 are absent because
+// births and deaths are barred from the quiz outright.
+// A settlement, city or dig site is founded, not built. Checked against the
+// Wikidata description rather than the title, because the title is a bare proper
+// noun that says nothing -- "Assur", "Amarna", "Phanagoria" are all cities and
+// none of them announce it.
+const IS_PLACE = /\b(?:archaeolog\w*|settlement|city|town|village|polis|colony|capital)\b/i;
+
+// "Broke out" is only true of something that breaks out. The residue of this
+// category that reaches the fallback is whatever the title-based rules did not
+// already catch, and it is not all epidemics: without this guard the pool
+// contained "Armenian Genocide broke out", "September Massacres broke out" and
+// "the Harrying of the North broke out". A genocide is perpetrated, not
+// contracted, and phrasing it as an outbreak is both wrong and grotesque.
+const IS_OUTBREAK = /\b(?:epidemic|pandemic|plague|famine|fire|conflagration|blaze|outbreak|disease)\b/i;
+
+// Universities in every spelling the dataset actually uses. The first version of
+// this matched only "University", "College" and "Polytechnic", and let through
+// Université de Montréal, Universidade Federal de Goiás, Università degli Studi,
+// Universitas Istropolitana, the London School of Economics and three business
+// schools. Universit\w* covers the Romance and Germanic forms in one; the rest
+// are listed because they share no stem with it.
+const IS_SCHOOL =
+  /\b(?:Universit\w*|Univerzit\w*|Uniwersytet\w*|Universiteit|Hochschule|College|Colegio|Coll[eè]ge|Escuela|Polytechnic|Politecnico|Ateneo)\b|\bSchool\b/i;
+
+// Sporting fixtures. Not a quality judgement about sport -- the dataset filed
+// "Saudi Arabian Grand Prix" under Economy & Trade, where the P571 rule turned it
+// into "Saudi Arabian Grand Prix was founded", which is both the wrong verb for a
+// motor race and a fixture the dataset was explicitly asked not to accumulate.
+// This stops the fallback inventing new ones; fixtures already phrased by the
+// title rules above are unaffected.
+const IS_FIXTURE =
+  /\b(?:Grand Prix|Championships?|Cup|Olympiad|Olympics|Tournament|Trophy|League|Season|Open|Games|Derby|Regatta)\b/i;
+
+// Verb tables, consulted after the guards above. Keyed by the Wikidata property
+// that supplied the stored year -- P571 inception, P580 start time, P576
+// dissolution -- so the claim follows the data rather than a guess about what
+// kind of thing the title names.
+//
+// Deliberately narrow. Only pairs where the verb is true of every member are
+// listed, because a wrong verb here is not cosmetic: the quiz grades people
+// against it. P585 "point in time" is absent throughout, because it means only
+// "this is when the thing is dated to" and supports no verb for a bare noun.
+// P569 and P570 are absent because births and deaths are barred outright.
+// "Wars & Conflicts" is absent from P580 for the same reason IS_OUTBREAK exists:
+// what reaches the fallback there is campaigns, fronts and expeditions -- "the
+// Algiers expedition broke out", "Eastern Front broke out" -- not wars.
+const BARE_NAME_VERBS = {
+  P571: {
+    "Architecture & Engineering": (d) => (IS_PLACE.test(d) ? "was founded" : "was built"),
+    "Economy & Trade": () => "was founded",
+    "Religion & Belief Systems": () => "was founded",
+    "Science & Technology": () => "was founded",
+    "Politics & Government": () => "was founded",
+  },
+  P580: {
+    "Architecture & Engineering": (d) => (IS_PLACE.test(d) ? "was founded" : "was built"),
+    "Disasters & Pandemics": (d) => (IS_OUTBREAK.test(d) ? "broke out" : null),
+  },
+  P576: {
+    "Economy & Trade": () => "closed",
+    "Religion & Belief Systems": () => "was dissolved",
+  },
+};
+
+function bareNameQuestion(title, category, dateProp, description = "") {
+  const pick = BARE_NAME_VERBS[dateProp]?.[category];
+  if (!pick) return null;
+  // Universities are barred from the quiz, and the fallback is the one path that
+  // can invent a founding statement for one. Stopping it here keeps the rule in
+  // the same place as the phrasing it would otherwise create.
+  if (IS_SCHOOL.test(title)) return null;
+  if (IS_FIXTURE.test(title) || IS_FIXTURE.test(description || "")) return null;
+  const verb = pick(description || "");
+  if (!verb) return null;
+  return `${withTheIfCommonHead(title)} ${verb}`;
+}
+
+// dateProp is optional: callers without the precision cache get exactly the old
+// behaviour, which is what keeps the year pages and every other consumer of this
+// module unchanged.
+function questionFor(title, category, dateProp = null, description = "") {
   // General rules first: a title that already says what happened ("... born",
   // "Battle of ...") should phrase the same way regardless of category.
   for (const rule of RULES) {
@@ -160,7 +262,8 @@ function questionFor(title, category) {
     const m = rule.re.exec(title);
     if (m) return rule.q(m);
   }
-  return null;
+  // Last: the bare proper noun, phrased from the date's own property.
+  return bareNameQuestion(title, category, dateProp, description);
 }
 
-export { withThe, withTheIfPolity, withTheIfCommonHead, RULES, CATEGORY_RULES, HAND_WRITTEN, questionFor };
+export { withThe, withTheIfPolity, withTheIfCommonHead, RULES, CATEGORY_RULES, HAND_WRITTEN, BARE_NAME_VERBS, questionFor };

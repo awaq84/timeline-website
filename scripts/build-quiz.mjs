@@ -48,6 +48,7 @@ import { HAND_WRITTEN, questionFor } from "./event-phrasing.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_PATH = path.join(__dirname, "..", "data", "events.js");
 const SITELINKS_PATH = path.join(__dirname, "..", "data", ".cache", "sitelinks.json");
+const PRECISION_PATH = path.join(__dirname, "..", "data", ".cache", "date-precision.json");
 const OUT_PATH = path.join(__dirname, "..", "data", "quiz.js");
 
 const MIN_FAME_OTHER = Number(process.env.QUIZ_MIN_FAME_OTHER || 12);
@@ -279,6 +280,32 @@ async function main() {
     process.exit(1);
   }
 
+  // Which Wikidata property supplied each stored year, from the same cache
+  // enrich-date-precision.mjs writes. questionFor() needs it to phrase a bare
+  // proper noun: "Bent Pyramid" says nothing on its own, but knowing the year
+  // came from P571 (inception) rather than P575 (discovery) makes it "the Bent
+  // Pyramid was built". Optional -- without it questionFor falls back to the
+  // title-only rules and the pool is simply smaller.
+  let precision = {};
+  try {
+    precision = JSON.parse(await fs.readFile(PRECISION_PATH, "utf8"));
+  } catch {
+    console.warn(`No ${PRECISION_PATH} -- bare-name events will be skipped. Run: node scripts/enrich-date-precision.mjs`);
+  }
+
+  // A subject usually carries several dated statements. Take the property whose
+  // year matches the one actually stored, so the verb describes the date being
+  // asked about rather than some other milestone in the same article. Medici
+  // Bank has P571=1397 and P576=1499; at 1397 that is a founding, at 1499 a
+  // closure, and phrasing either with the other's verb would be a false claim.
+  const datePropOf = (e) => {
+    const t = articleTitleFromWiki(e.wiki);
+    const rows = t && precision[t];
+    if (!rows) return null;
+    const hit = rows.find((r) => r[1] === e.year);
+    return hit ? hit[0] : null;
+  };
+
   // null means "not in the cache", 0 means "in the cache with no sitelinks".
   const fameOf = (e) => {
     const t = articleTitleFromWiki(e.wiki);
@@ -323,7 +350,7 @@ async function main() {
     // cannot silently stop catching them.
     if (BIO_TITLE.test(e.title)) { rejected.bio++; continue; }
 
-    const q = questionFor(e.title, e.category);
+    const q = questionFor(e.title, e.category, datePropOf(e), e.summary || "");
     if (!q) { rejected.unphrasable++; continue; }
     if (statesAYear(q, e.year)) { rejected.dated++; continue; }
     // University foundings and "X island was discovered" go for the same reason.
@@ -367,6 +394,7 @@ async function main() {
 
   const perCentury = new Map();
   const seenSubjectYear = new Set();
+  const seenFamily = new Set();
   const pool = [];
 
   for (const { e, q, hand, fame } of candidates) {
@@ -381,6 +409,20 @@ async function main() {
     const key = `${sub}|${e.year}`;
     if (seenSubjectYear.has(key)) continue;
     seenSubjectYear.add(key);
+
+    // Two DIFFERENT subjects can still make the same question. The pool held 18
+    // separate "COVID-19 pandemic in <country> broke out" entries at 2020, each
+    // with its own subject key, so the client's per-puzzle duplicate guard saw
+    // four distinct subjects and would happily deal them into one question.
+    //
+    // Only a trailing " in <Place>" is stripped, never " of <Name>". That
+    // distinction is the whole rule: Salamis and Artemisium were both fought in
+    // 480 BC and are two perfectly good separate questions, and an earlier
+    // version of this that also stripped "of" collapsed 238 entries, most of
+    // them real battles.
+    const family = `${e.year}|${q.replace(/\s+in\s+(?:the\s+)?[A-Z][^,]*?\s+(was|were|broke|took|opened|closed|began)\b/, " $1").toLowerCase()}`;
+    if (seenFamily.has(family)) continue;
+    seenFamily.add(family);
 
     perCentury.set(c, used + 1);
 
