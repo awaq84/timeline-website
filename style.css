@@ -1114,8 +1114,21 @@ main {
     border-right: none;
   }
 
+  /* Not display:none. Hiding these entirely was the first attempt and it went too
+     far: the map became anonymous coloured dots with no way to tell what any of
+     them was without tapping, which reads as "the events are gone".
+
+     The real problem was never that labels existed, it was that all 522 were
+     drawn at ~4px. resolveLabelCollisions() already thins them -- desktop places
+     27 of 522 and hides the rest -- and it thins them harder here, because the
+     map is small and .marker-visual is scaled 2x, so each label's footprint is
+     proportionally much larger. Making them readable is enough; the resolver
+     decides how many fit.
+
+     15px inside a visual scaled 2x, in a viewBox scaled 0.39, lands at about
+     11.7px on screen. */
   #map svg .marker-label {
-    display: none;
+    font-size: 15px;
   }
 
   /* Sat over the middle of the map, on top of the markers it was describing. */

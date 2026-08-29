@@ -797,7 +797,14 @@ function resolveLabelCollisions() {
   // few surviving markers sit inside a cluster of a couple hundred greyed dots,
   // and every candidate offset collided with one. A label crossing a 45%-opacity
   // grey dot is a far smaller cost than no label at all.
-  const dotRadius = MARKER_R + 2;
+  // MARKER_R is in the visual's own units, and the visual is scaled by
+  // markerScale() -- 2 on phones. Both the dot footprints seeded below and the
+  // label bboxes measured further down are in those same unscaled units, so
+  // every rect has to be multiplied up or the resolver reasons about a map where
+  // everything is half its real size. That was the bug behind five pairs of
+  // overlapping labels on a phone: the geometry was right, the scale was not.
+  const visualScale = markerScale();
+  const dotRadius = MARKER_R * visualScale + 2;
   const localXY = (g) => {
     const matrix = g.transform.baseVal.consolidate();
     return {
@@ -826,6 +833,16 @@ function resolveLabelCollisions() {
   // to real screen rects, which account for zoom and pan automatically.
   const svgRect = svg.node().getBoundingClientRect();
 
+  // The year badge and the zoom controls are HTML overlaid on the SVG, so the
+  // resolver has never known they are there and put "Gap Inc." straight through
+  // the 1969. They are cheap to respect in screen space, which is the same space
+  // the out-of-bounds test below already works in -- no converting an HTML rect
+  // into pre-zoom map coordinates.
+  const overlayRects = [document.getElementById("yearBadge"), document.querySelector(".map-zoom-controls")]
+    .filter(Boolean)
+    .map((el) => el.getBoundingClientRect())
+    .filter((r) => r.width > 0 && r.height > 0);
+
   sorted.forEach((g) => {
     const text = g.querySelector(".marker-label");
     if (!text) return;
@@ -848,10 +865,10 @@ function resolveLabelCollisions() {
       text.setAttribute("text-anchor", offset.anchor);
       const bbox = text.getBBox();
       const rect = {
-        x1: px + bbox.x - 3,
-        y1: py + bbox.y - 3,
-        x2: px + bbox.x + bbox.width + 3,
-        y2: py + bbox.y + bbox.height + 3,
+        x1: px + bbox.x * visualScale - 3,
+        y1: py + bbox.y * visualScale - 3,
+        x2: px + (bbox.x + bbox.width) * visualScale + 3,
+        y2: py + (bbox.y + bbox.height) * visualScale + 3,
       };
       const overlaps = placedRects.some(
         (r) => r.owner !== g && rect.x1 < r.x2 && rect.x2 > r.x1 && rect.y1 < r.y2 && rect.y2 > r.y1
@@ -862,7 +879,10 @@ function resolveLabelCollisions() {
         screen.right > svgRect.right ||
         screen.top < svgRect.top ||
         screen.bottom > svgRect.bottom;
-      if (!overlaps && !outOfBounds) {
+      const hitsOverlay = overlayRects.some(
+        (r) => screen.left < r.right && screen.right > r.left && screen.top < r.bottom && screen.bottom > r.top
+      );
+      if (!overlaps && !outOfBounds && !hitsOverlay) {
         placedRects.push({ owner: g, ...rect });
         placed = true;
         break;
