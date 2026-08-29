@@ -632,6 +632,41 @@ ${grid}
   });
 }
 
+
+// index.html is hand-written rather than generated, so the figures in its meta
+// description and its schema.org block were typed once and never revisited. They
+// said "148,000+ historical events" and "3000 BC" while the dataset held 159,093
+// going back to 12480 BC -- and unlike a stale figure in body copy, this is the
+// text Google prints under the site's own name in results.
+//
+// Rewritten in place from the same DATASET_FACTS the generated pages use. Matches
+// only the number and the era, so the surrounding wording stays editable by hand.
+async function refreshHomepageFacts() {
+  const file = path.join(ROOT, "index.html");
+  let html;
+  try {
+    html = await fs.readFile(file, "utf8");
+  } catch {
+    return;
+  }
+  // Round down to a clean "N,000+" so the copy does not have to be rewritten for
+  // every merge, while never overstating what the dataset holds.
+  const thousands = Math.floor(Number(DATASET_FACTS.total.replace(/,/g, "")) / 1000).toLocaleString("en-US");
+  const rounded = `${thousands},000+`;
+  const plain = `${thousands},000`;
+  const before = html;
+  html = html
+    // "more than N" first, and without the plus: "more than 159,000+" hedges twice.
+    .replace(/\bmore than [\d,]+\+? historical events\b/g, `more than ${plain} historical events`)
+    .replace(/\b[\d,]+\+ historical events\b/g, `${rounded} historical events`)
+    .replace(/from \d{1,5} BC to (today|the present day)/g, `from ${DATASET_FACTS.first} to $1`)
+    .replace(/Drag the timeline from \d{1,5} BC/g, `Drag the timeline from ${DATASET_FACTS.first}`);
+  if (html !== before) {
+    await fs.writeFile(file, html);
+    console.log(`Refreshed index.html facts: ${rounded} events, from ${DATASET_FACTS.first}`);
+  }
+}
+
 // ---- Build ----
 
 // This script reads the chunks, not data/events.js, so it must run AFTER
@@ -697,6 +732,7 @@ async function main() {
     ...quizFacts(),
   };
   console.log(`Dataset: ${DATASET_FACTS.total} events, ${DATASET_FACTS.first} to ${DATASET_FACTS.last} (${DATASET_FACTS.approx} approximate-date, ${DATASET_FACTS.infobox} infobox-dated)`);
+  await refreshHomepageFacts();
   const total = years.reduce((s, y) => s + byYear.get(y).length, 0);
   if (total !== index.total) {
     throw new Error(`read ${total} events but index says ${index.total}`);
