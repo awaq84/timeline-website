@@ -880,24 +880,70 @@ async function main() {
   }
   console.log(`Wrote ${STATIC_PAGES.length} static pages`);
 
-  const urls = [
-    `${SITE}/`,
-    ...STATIC_PAGES.map((p) => `${SITE}/${p.slug}/`),
-    ...centuries.map((c) => `${SITE}/century/${centurySlug(c)}/`),
-    ...years.map((y) => `${SITE}/year/${yearSlug(y)}/`),
+  // --- Sitemaps, split by how much a page actually has to say ---
+  //
+  // One flat file listed 2,845 URLs, gave every year page priority 0.6 and no
+  // lastmod. Google was handed no way to tell the 862 pages carrying twenty or
+  // more events from the 455 carrying fewer than three, and it responded by
+  // leaving 2,298 of them as "Discovered - currently not indexed" -- found,
+  // never crawled. That is crawl budget being rationed on a domain with no
+  // authority yet, and an undifferentiated list spends it at random.
+  //
+  // Splitting into an index plus tiered children does two things. Google gets
+  // told which pages are worth its time. More usefully, Search Console reports
+  // coverage PER SITEMAP, so "are the good pages indexing while the thin ones
+  // are not?" becomes a number on a screen instead of a guess.
+  //
+  // The tiers fall on a real seam: every page with fewer than three exact-dated
+  // events is pre-AD 1000. Nothing from 1000 onward is thin.
+  const exactCount = (y) => byYear.get(y).filter((e) => !e.prec).length;
+  const tiers = {
+    core: years.filter((y) => exactCount(y) >= 8),
+    "long-tail": years.filter((y) => exactCount(y) >= 3 && exactCount(y) < 8),
+    sparse: years.filter((y) => exactCount(y) < 3),
+  };
+
+  const urlEntry = (u, priority) =>
+    `  <url>\n    <loc>${u}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+  const urlset = (entries) =>
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join("\n")}\n</urlset>\n`;
+
+  // Everything that is not a year page: the app, the static pages and all 64
+  // century hubs. Small enough that Google gets through it, and it is the layer
+  // the year pages hang off.
+  const mainEntries = [
+    urlEntry(`${SITE}/`, "1.0"),
+    ...STATIC_PAGES.map((p) => urlEntry(`${SITE}/${p.slug}/`, p.slug === "quiz" ? "0.9" : "0.6")),
+    ...centuries.map((c) => urlEntry(`${SITE}/century/${centurySlug(c)}/`, "0.8")),
   ];
-  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls
-  .map(
-    (u, i) =>
-      `  <url>\n    <loc>${u}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>${i === 0 ? "1.0" : u.includes("/century/") ? "0.8" : "0.6"}</priority>\n  </url>`
-  )
-  .join("\n")}
-</urlset>
+
+  const files = [["sitemap-main.xml", urlset(mainEntries)]];
+  const priorities = { core: "0.8", "long-tail": "0.5", sparse: "0.3" };
+  for (const [name, list] of Object.entries(tiers)) {
+    if (!list.length) continue;
+    files.push([
+      `sitemap-years-${name}.xml`,
+      urlset(list.map((y) => urlEntry(`${SITE}/year/${yearSlug(y)}/`, priorities[name]))),
+    ]);
+  }
+
+  for (const [name, xml] of files) await fs.writeFile(path.join(ROOT, name), xml);
+
+  const sitemapIndex = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${files.map(([name]) => `  <sitemap>\n    <loc>${SITE}/${name}</loc>\n  </sitemap>`).join("\n")}
+</sitemapindex>
 `;
-  await fs.writeFile(SITEMAP_PATH, sitemap);
-  console.log(`Wrote sitemap.xml with ${urls.length} URLs`);
+  await fs.writeFile(SITEMAP_PATH, sitemapIndex);
+
+  const totalUrls = mainEntries.length + years.length;
+  console.log(`Wrote sitemap.xml as an index of ${files.length} sitemaps, ${totalUrls} URLs total:`);
+  console.log(`  sitemap-main.xml            ${String(mainEntries.length).padStart(5)}  (app, static pages, ${centuries.length} centuries)`);
+  for (const [name, list] of Object.entries(tiers)) {
+    if (!list.length) continue;
+    const label = { core: "8+ events", "long-tail": "3-7 events", sparse: "under 3 events" }[name];
+    console.log(`  sitemap-years-${name}.xml`.padEnd(30) + `${String(list.length).padStart(5)}  (${label})`);
+  }
 
   // The era list the home page links out from, so a crawler reaches every
   // century in one hop from "/" and every year in two.
