@@ -46,7 +46,7 @@
 }
 </script>
 
-<link rel="stylesheet" href="style.css?v=e744ffe3">
+<link rel="stylesheet" href="style.css?v=9ae7420c">
 </head>
 <body>
 
@@ -107,6 +107,14 @@
     </div>
     <p class="map-zoom-hint" id="mapZoomHint">Scroll, pinch, or use the controls to zoom into crowded areas</p>
   </section>
+
+  <!-- Where the pinned event card goes on a phone. The card lives inside
+       .map-section on desktop, but that section is 197px tall with
+       overflow:hidden and the card is 352px, so more than half of it -- the
+       description, the Wikipedia link, both category buttons -- was clipped away
+       with no way to reach it. app.js moves the same element in here below 640px
+       rather than rendering a second copy, so every handler on it still works. -->
+  <section class="event-detail-slot" id="eventDetailSlot" hidden></section>
 
   <section class="timeline-section">
     <div class="timeline-controls">
@@ -254,6 +262,6 @@
      "Data access" section there. Loading the full 28MB dataset up front cost
      roughly six seconds before the first marker appeared. -->
 <script src="data/discover.js?v=8dcd24fe"></script>
-<script src="app.js?v=dbeea935"></script>
+<script src="app.js?v=fae81800"></script>
 </body>
 </html>

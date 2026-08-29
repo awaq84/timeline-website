@@ -85,6 +85,7 @@ const stepForwardBtn = document.getElementById("stepForward");
 const playBtn = document.getElementById("playBtn");
 const mapSectionEl = document.querySelector(".map-section");
 const mapTooltipEl = document.getElementById("mapTooltip");
+const eventDetailSlot = document.getElementById("eventDetailSlot");
 const datasetStatEl = document.getElementById("datasetStat");
 const zoomInBtn = document.getElementById("zoomInBtn");
 const zoomOutBtn = document.getElementById("zoomOutBtn");
@@ -466,6 +467,31 @@ const MAP_HEIGHT = 500;
 // ones. Read on each use rather than cached, so rotating the phone or resizing
 // picks up the change without a reload.
 const markerScale = () => (window.matchMedia("(max-width: 640px)").matches ? 2 : 1);
+
+const isPhoneLayout = () => window.matchMedia("(max-width: 640px)").matches;
+
+// The pinned card is 352px tall. On a phone .map-section is 197px with
+// overflow:hidden, so more than half of it -- the description, the Wikipedia
+// link and both category buttons -- was clipped with no way to scroll to it.
+// Repositioning cannot fix a card larger than the box it lives in.
+//
+// So on phones the card is MOVED into a slot below the map rather than a second
+// copy being rendered there. Same element, same markup, same listeners already
+// bound by renderMapTooltip -- only its parent changes. Anything else would mean
+// maintaining two versions of the card and the handlers that drive it.
+function placeTooltipForViewport(pinned) {
+  const belowMap = isPhoneLayout() && pinned;
+  const wanted = belowMap ? eventDetailSlot : mapSectionEl;
+  if (mapTooltipEl.parentElement !== wanted) wanted.appendChild(mapTooltipEl);
+  eventDetailSlot.hidden = !belowMap;
+  if (belowMap) {
+    // positionMapTooltip() leaves absolute coordinates behind; in the slot the
+    // card is in normal flow and those would drag it off-screen.
+    mapTooltipEl.style.left = "";
+    mapTooltipEl.style.top = "";
+  }
+  return belowMap;
+}
 
 function initMap() {
   svg = d3
@@ -994,11 +1020,16 @@ let pinnedAnchor = null;
 let pinnedEvent = null;
 
 function renderMapTooltip(anchor, d, pinned) {
+  // A tap fires mouseenter before click, so without this a phone flashes the
+  // hover card inside the clipping map section on the way to pinning it.
+  if (isPhoneLayout() && !pinned) return;
   const token = ++tooltipHoverToken;
   mapTooltipEl.innerHTML = tooltipMarkup(d, pinned);
   mapTooltipEl.classList.toggle("pinned", pinned);
   mapTooltipEl.classList.add("visible");
-  positionMapTooltip(anchor);
+  const belowMap = placeTooltipForViewport(pinned);
+  if (belowMap) eventDetailSlot.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  else positionMapTooltip(anchor);
 
   // Marker-matching swatch, built with the same helper as the filter list.
   document.getElementById("tooltipSwatch")?.appendChild(categorySwatch(d.category, 14));
@@ -1082,6 +1113,7 @@ function unpinMapTooltip() {
   pinnedAnchor = null;
   pinnedEvent = null;
   mapTooltipEl.classList.remove("pinned", "visible");
+  placeTooltipForViewport(false);
 }
 
 document.addEventListener("click", (e) => {

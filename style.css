@@ -1158,6 +1158,51 @@ main {
   }
 }
 
+/* ---- Pinned event card, phone layout ---- */
+
+/* The card is moved here from inside .map-section on phones -- see
+   placeTooltipForViewport() in app.js. In the map it is absolutely positioned
+   and clipped; here it is an ordinary block that can be as tall as it likes. */
+.event-detail-slot[hidden] {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .event-detail-slot {
+    margin: 0 -14px;
+  }
+
+  .event-detail-slot .map-tooltip {
+    position: static;
+    display: block;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    /* The card sets these while it lives in the map. */
+    left: auto;
+    top: auto;
+  }
+
+  .event-detail-slot .tooltip-image-wrap img {
+    width: 100%;
+    max-height: 210px;
+    object-fit: cover;
+  }
+
+  /* Room for the close button, which sits top-right over the image. */
+  .event-detail-slot .tooltip-close {
+    top: 12px;
+    right: 12px;
+  }
+}
+
 /* ---- Site footer ---- */
 
 /* Mirrors the footer that layout() in scripts/build-year-pages.mjs puts on the
