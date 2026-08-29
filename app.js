@@ -455,6 +455,18 @@ let spotlightKey = null;
 const MAP_WIDTH = 960;
 const MAP_HEIGHT = 500;
 
+// Markers are drawn in viewBox units and scaled by 1/zoom so they stay a
+// constant size on screen as you zoom. That holds on desktop, where the 960-unit
+// viewBox renders at roughly 960px. On a 375px phone the same viewBox is scaled
+// to 0.39, so the 11-unit halo lands as an 8.6px tap target -- a fifth of the
+// ~44px a fingertip needs, on the one control the whole page exists to offer.
+//
+// Scaling the marker layer back up on phones costs nothing on the map itself:
+// dots already overlap at this size and the existing fan-out handles co-located
+// ones. Read on each use rather than cached, so rotating the phone or resizing
+// picks up the change without a reload.
+const markerScale = () => (window.matchMedia("(max-width: 640px)").matches ? 2 : 1);
+
 function initMap() {
   svg = d3
     .select("#map")
@@ -508,7 +520,7 @@ function initMap() {
     .on("zoom", (event) => {
       currentZoomK = event.transform.k;
       zoomLayer.attr("transform", event.transform);
-      markerLayer.selectAll(".marker-visual").attr("transform", `scale(${1 / currentZoomK})`);
+      markerLayer.selectAll(".marker-visual").attr("transform", `scale(${markerScale() / currentZoomK})`);
       // Fan offsets are screen-space, so they are divided by the zoom factor and
       // have to be recomputed here or co-located markers drift apart as you zoom.
       if (markerFanOffsets.size) markerLayer.selectAll("g.event-marker").attr("transform", markerTransform);
@@ -713,7 +725,7 @@ function renderMarkers(currentEvents) {
   // zoom level, so dots/labels stay a constant pixel size while geographic
   // distance between them grows as you zoom in -- that's what lets zoom
   // actually pull overlapping markers apart instead of just magnifying them.
-  const visual = entered.append("g").attr("class", "marker-visual").attr("transform", `scale(${1 / currentZoomK})`);
+  const visual = entered.append("g").attr("class", "marker-visual").attr("transform", `scale(${markerScale() / currentZoomK})`);
 
   visual.append("circle").attr("class", "marker-halo").attr("r", 11);
   visual.append("circle").attr("r", MARKER_R);

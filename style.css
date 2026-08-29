@@ -1083,6 +1083,68 @@ main {
   }
 }
 
+/* ---- Phones ----
+   The map is the product, and on a 375px phone it was rendering at 325x169 CSS
+   pixels. The SVG carries a fixed viewBox of 960x500 with height:auto, so its
+   1.92:1 ratio is locked: whatever width it gets, the height is that over 1.92.
+   Two things follow, and both are fixed here rather than by touching the
+   projection.
+
+   First, width is height. Every pixel taken by page padding costs half a pixel
+   of map, so the map runs edge to edge on phones and gets all 375.
+
+   Second, the labels. 522 of them are drawn at font-size 12 inside a viewBox
+   scaled to 0.34, which puts them on screen at about 4px, overlapping each other
+   across every landmass. They are unreadable at any size that fits, and they are
+   what makes the map look broken rather than small. Hidden here -- the dots stay,
+   and tapping one still opens its detail. The spotlight rule further up uses
+   !important, so a pinned marker keeps its label, which is the one case where a
+   label is both readable and wanted. */
+@media (max-width: 640px) {
+  main {
+    padding: 0 14px 44px;
+    gap: 14px;
+  }
+
+  .map-section {
+    margin-left: -14px;
+    margin-right: -14px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  #map svg .marker-label {
+    display: none;
+  }
+
+  /* Sat over the middle of the map, on top of the markers it was describing. */
+  .map-zoom-hint {
+    display: none;
+  }
+
+  .year-badge {
+    top: 10px;
+    left: 14px;
+    font-size: 2rem;
+  }
+
+  .map-zoom-controls {
+    top: 10px;
+    right: 10px;
+  }
+
+  /* The events list keeps its own scroll on phones. Letting the page be the only
+     scroller was tried and is much worse: all 522 cards for a busy year render
+     into the flow, giving an 87,000px list and a 90,000px page -- 112 screens of
+     scrolling to reach the footer. A capped inner region is the lesser evil. */
+  .events-list {
+    max-height: 60vh;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
 /* ---- Site footer ---- */
 
 /* Mirrors the footer that layout() in scripts/build-year-pages.mjs puts on the
