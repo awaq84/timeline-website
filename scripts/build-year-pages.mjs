@@ -667,6 +667,47 @@ async function refreshHomepageFacts() {
   }
 }
 
+
+// Writes the century list straight into index.html.
+//
+// It used to be written only to data/.cache/era-links.html for someone to paste
+// in by hand. That happened once. By the time anyone looked, the homepage linked
+// 51 centuries and 64 existed, so 13 -- 125th, 85th, 76th, 75th, 70th, 60th,
+// 40th, 38th, 37th, 36th, 35th, 33rd and 29th century BC -- were reachable from
+// nothing but the sitemap.
+//
+// That matters more than a missing link normally would. Search Console reports
+// 2,298 URLs as "Discovered - currently not indexed", which is Google rationing
+// crawl budget, and an orphaned page is the first thing it declines to spend it
+// on. Every one of those thirteen is deep antiquity, which is exactly where this
+// dataset has been growing and where it has least competition.
+async function refreshHomepageEraLinks(eraLinks) {
+  const file = path.join(ROOT, "index.html");
+  let html;
+  try {
+    html = await fs.readFile(file, "utf8");
+  } catch {
+    return;
+  }
+  const before = html;
+  const nav = /(<nav class="era-links">)[\s\S]*?(<\/nav>)/;
+  if (!nav.test(html)) {
+    console.warn("  index.html has no <nav class=\"era-links\"> -- century links not refreshed.");
+    return;
+  }
+  html = html.replace(nav, `$1\n${eraLinks}\n      $2`);
+  // The blurb above the list carries its own copy of the dataset figures.
+  html = html.replace(
+    /<p class="hint">[\d,]+ events from [^<]*<\/p>\s*(<nav class="era-links">)/,
+    `<p class="hint">${DATASET_FACTS.total} events from ${DATASET_FACTS.first} to ${DATASET_FACTS.last}, written out as pages you can read without the map.</p>\n      $1`
+  );
+  if (html !== before) {
+    const n = (html.match(/href="\/century\//g) || []).length;
+    await fs.writeFile(file, html);
+    console.log(`Refreshed index.html era links: ${n} centuries linked`);
+  }
+}
+
 // ---- Build ----
 
 // This script reads the chunks, not data/events.js, so it must run AFTER
@@ -866,7 +907,7 @@ ${urls
     .map((c) => `<a href="/century/${centurySlug(c)}/">${centuryLabel(c)}</a>`)
     .join("\n        ");
   await fs.writeFile(path.join(cacheDir, "era-links.html"), eraLinks);
-  console.log(`\nEra links for index.html written to data/.cache/era-links.html`);
+  await refreshHomepageEraLinks(eraLinks);
 }
 
 await main();
