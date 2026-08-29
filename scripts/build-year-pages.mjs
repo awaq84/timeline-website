@@ -24,6 +24,8 @@ import fsSync from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { STATIC_PAGES } from "./static-pages.mjs";
+import { HAND_WRITTEN } from "./event-phrasing.mjs";
+import { articleTitleFromWiki } from "./wiki-title.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
@@ -31,6 +33,15 @@ const DATA_DIR = path.join(ROOT, "data");
 const YEAR_DIR = path.join(ROOT, "year");
 const CENTURY_DIR = path.join(ROOT, "century");
 const SITEMAP_PATH = path.join(ROOT, "sitemap.xml");
+
+// Sitelink counts, used only to decide which events a year is KNOWN for. Absent
+// cache degrades to the old category-tally lead rather than failing the build.
+let SITELINKS = {};
+try {
+  SITELINKS = JSON.parse(fsSync.readFileSync(path.join(ROOT, "data", ".cache", "sitelinks.json"), "utf8"));
+} catch {
+  console.warn("No sitelinks.json -- year pages will fall back to counting categories.");
+}
 
 const SITE = "https://timelinehistory.net";
 const CSS_VERSION = "5ba15398";
@@ -292,6 +303,68 @@ function yearPage(year, events, ctx) {
   // history and stays on the page, but below, under a heading that says what it
   // actually is. Before this split, /year/1150/ opened with "490 recorded events
   // in 1150" when 470 of those are only known to the 12th century.
+// --- Which events a year is remembered for ---
+//
+// The meta description is what a searcher reads before deciding to click, and it
+// used to be a tally of the database: "29 recorded events in 1453, including 9 in
+// people, 8 in wars & conflicts". Someone typing "what happened in 1453" wants
+// "Constantinople fell to the Ottomans". Roughly 3,000 impressions produced no
+// clicks, which is what a snippet promising nothing earns.
+//
+// Ranking on sitelinks alone does not work, because that measures the fame of the
+// SUBJECT rather than the event. A country's article outlinks any single thing
+// that happened, so 1969 led with "Libya founded" over the moon landing, 1912
+// with "Albania founded" over the Titanic, and 1066 with "Tower of London" over
+// Hastings. The adjustments below encode what the raw number cannot: a curated
+// landmark outranks everything, a title that names something that HAPPENED
+// outranks one that names a place, and births, deaths and foundings are pushed
+// down because they are where subject fame leaks in.
+const EVENT_SHAPED =
+  /^(?:First |Second |Third )?(?:Battle|Siege|Treaty|Peace|Fall|Sinking|Assassination|Eruption|Storming|Signing|Attack|Massacre|Crash|Landing|Launch|Discovery|Founding|Coronation|Crusade|Revolt|Rebellion|Uprising|Revolution|War|Invasion|Conquest|Great Fire|Wall Street)\b|\b(?:War|Revolution|Rebellion|Uprising|Crusade|earthquake|pandemic|plague|famine|flood|eruption)$/i;
+
+const STOPWORDS = new Set(["the","of","a","an","in","at","on","and","first","second","third","great","new","battle","siege","war"]);
+const keyTokens = (title) =>
+  new Set(
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 3 && !STOPWORDS.has(w))
+  );
+
+function headlineEvents(exact, limit = 3) {
+  const fameOf = (e) => {
+    const t = articleTitleFromWiki(e.wiki);
+    return (t && SITELINKS[t]) || 0;
+  };
+  const score = (e) => {
+    let s = fameOf(e);
+    if (HAND_WRITTEN[e.title]) s += 1000;
+    else if (e.category === "Major Events") s += 600;
+    else if (EVENT_SHAPED.test(e.title)) s += 250;
+    if (/\s(born|died)$/i.test(e.title)) s -= 150;
+    if (/\sfounded$/i.test(e.title)) s -= 120;
+    return s;
+  };
+
+  const ranked = [...exact].sort((a, b) => score(b) - score(a));
+  // 44 BC otherwise offered "Assassination of Julius Caesar", "Julius Caesar"
+  // and "Julius Caesar died" as three separate highlights, and 1912 listed the
+  // Titanic twice. Keep the best-scoring event per subject: any shared
+  // distinctive word means the same story.
+  const picked = [];
+  const usedTokens = [];
+  for (const e of ranked) {
+    const toks = keyTokens(e.title);
+    if (!toks.size) continue;
+    if (usedTokens.some((prev) => [...toks].some((t) => prev.has(t)))) continue;
+    picked.push(e);
+    usedTokens.push(toks);
+    if (picked.length === limit) break;
+  }
+  return picked;
+}
+
   const exact = events.filter((e) => !e.prec);
   const approx = events.filter((e) => e.prec);
 
@@ -313,13 +386,21 @@ function yearPage(year, events, ctx) {
     ? ` A further ${approx.length === 1 ? "event is" : `${approx.length.toLocaleString("en-US")} events are`} dated only to the wider period.`
     : "";
 
+  // Name the events, then give the count. The category tally is kept only as the
+  // fallback for a year whose events are all so obscure that none can be
+  // singled out -- it is a fact about the database, not about the year.
+  const headlines = headlineEvents(exact, 3);
   const lead =
     exact.length === 0
       ? `No event is dated precisely to ${label}, but ${approx.length.toLocaleString("en-US")} ${approx.length === 1 ? "entry is" : "entries are"} recorded in the surrounding period.`
       : exact.length === 1
       ? `One recorded event in ${label}: ${exact[0].title}.${approxNote}`
+      : headlines.length >= 2
+      ? `${listPhrase(headlines.map((e) => e.title))} — among ${exact.length.toLocaleString("en-US")} events recorded in ${label}.${approxNote}`
       : `${exact.length.toLocaleString("en-US")} recorded events in ${label}, including ${listPhrase(topCats)}.${approxNote}`;
 
+  // Google truncates a description near 155 characters, so the named events have
+  // to come before the count and the boilerplate, not after them.
   const description = `What happened in ${label}? ${lead} Explore them on an interactive world map.`;
 
   const sections = cats
