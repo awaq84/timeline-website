@@ -107,7 +107,7 @@ export const STATIC_PAGES = [
     description:
       "A ten-level history quiz. Four events, one period — pick the two that belong to it. Starts with events everyone knows and ends somewhere unreasonable.",
     head: `\n<link rel="stylesheet" href="/quiz.css?v=88cb9b78">`,
-    scripts: `\n<script src="/quiz-app.js?v=cda07fd4"></script>`,
+    scripts: `\n<script src="/quiz-app.js?v=8beab129"></script>`,
     body: `
   <h1>History Quiz</h1>
 
