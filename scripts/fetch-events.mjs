@@ -223,6 +223,14 @@ const REGION_PASSES = process.env.FETCH_REGIONS === "1";
 // redo work whose rows the merge would then discard as duplicates. With this
 // set, the base, extra and derived passes are skipped too -- only the named
 // regions run.
+// Run one category instead of all twelve. A full pass takes hours against a
+// throttled endpoint, which makes "did adding this type work?" unanswerable in
+// any reasonable time.
+//   FETCH_ONLY="Wars & Conflicts"
+const ONLY_CATEGORIES = process.env.FETCH_ONLY
+  ? new Set(process.env.FETCH_ONLY.split(",").map((s) => s.trim()).filter(Boolean))
+  : null;
+
 const ONLY_REGIONS = process.env.FETCH_ONLY_REGIONS
   ? new Set(process.env.FETCH_ONLY_REGIONS.split(",").map((s) => s.trim()).filter(Boolean))
   : null;
@@ -302,8 +310,24 @@ function derivedTypePasses(cfg) {
   if (!DERIVED_TYPES) return [];
   const existing = new Set((cfg.types || []).map((t) => t.replace("wd:", "")));
   const fresh = derivedTypes(cfg.name).filter((t) => !existing.has(t.replace("wd:", "")));
-  const batches = [];
-  for (let i = 0; i < fresh.length; i += 4) batches.push(fresh.slice(i, i + 4));
+
+  // The first batches get one type each, the tail is grouped four at a time.
+  //
+  // Fixed-size batching lost events, and silently. Every query ends in ORDER BY
+  // DESC(?sitelinks) and is cut at RAW_LIMIT, so a batch mixing a huge type with
+  // a small one spends the whole budget on the huge one: "derived 1" returned
+  // exactly 1200 rows -- the cap -- and everything below the top 1200 by fame
+  // was discarded. Caesar's invasions of Britain has 28 sitelinks, coordinates
+  // and a point-in-time of 55 BC, and still did not survive being ranked against
+  // battles carrying 50 and 100.
+  //
+  // derivedTypes() returns types sorted by instance count, so giving the biggest
+  // ones a query to themselves means each competes only with its own kind. Same
+  // reasoning as rulerPositionBatches(), for the same failure.
+  const SOLO = 12;
+  const batches = fresh.slice(0, SOLO).map((t) => [t]);
+  const rest = fresh.slice(SOLO);
+  for (let i = 0; i < rest.length; i += 4) batches.push(rest.slice(i, i + 4));
   return batches.map((types, i) => ({
     ...cfg,
     extra: undefined,
@@ -400,6 +424,10 @@ const CATEGORIES = [
   {
     name: "Wars & Conflicts",
     mode: "event",
+    // Kept as leaves deliberately. The broad roots (armed conflict, military
+    // operation) live in fetch-type-graph.mjs instead: wdt:P279* over a tree
+    // that size reliably 504s when run inline, which is the whole reason the
+    // derived-type cache exists.
     types: ["wd:Q178561", "wd:Q198", "wd:Q188055", "wd:Q3199915", "wd:Q3882219"],
     dateProps: ["wdt:P585", "wdt:P580"],
     minSitelinks: 3,
@@ -1264,6 +1292,7 @@ async function main() {
   const only = process.argv[2] ? new Set(process.argv.slice(2)) : null;
 
   for (const cfg of CATEGORIES) {
+    if (ONLY_CATEGORIES && !ONLY_CATEGORIES.has(cfg.name)) continue;
     if (only && !only.has(cfg.name)) continue;
     const cachePath = path.join(cacheDir, `${cfg.name.replace(/[^a-z0-9]/gi, "_")}.json`);
     try {
