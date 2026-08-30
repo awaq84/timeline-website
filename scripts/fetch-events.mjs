@@ -743,6 +743,20 @@ const CATEGORIES = [
     minSitelinks: 3,
     extra: [
       ...[
+        // Frontier works. Hadrian's Wall (Q57357) and the Antonine Wall
+        // (Q210957) both carry coordinates AND an inception date in Wikidata --
+        // everything the pipeline needs -- and were absent anyway, because no
+        // pass ever asked for their P31. The most famous structure in Roman
+        // Britain was missing on a type-list omission, not a data gap.
+        //
+        // Only these four of the seven types those two items carry. Q12413618
+        // "international border" and Q4835091 "territory" are also on them and
+        // are deliberately left out: they would pull in every modern border and
+        // administrative region on Earth.
+        ["wd:Q146924", "Roman limes"],
+        ["wd:Q57346", "defensive wall"],
+        ["wd:Q2973801", "defense line"],
+        ["wd:Q21752084", "Roman archaeological site"],
         ["wd:Q32815", "mosque"],
         ["wd:Q842402", "Hindu temple"],
         ["wd:Q5393308", "Buddhist temple"],
